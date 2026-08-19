@@ -15,6 +15,7 @@ import { check, done, ok, section } from './lib/check.mjs';
 import { parseInfo } from '../packages/erddap-pmel/index.ts';
 import {
   BY_KEY, CHUNK_SECONDS, chunkOf, chunkPath, chunksFor, chunkSpan,
+  MAX_WINDOW_CHUNKS,
   conversionFor, DEFAULT_STACK, isKnownUnit, QUANTITIES, resolveDataset,
   resolveVariable, seasonOf, sensorOf, shardFor, splitStatistic, unitFault,
 } from '../packages/usv-vars/index.ts';
@@ -416,6 +417,44 @@ check('a week', CHUNK_SECONDS, 7 * 86400);
   check('a backwards window needs none', chunksFor(t0 + 100, t0).length, 0);
   check('an unreadable one likewise', chunksFor(NaN, t0).length, 0);
   check('an instant needs the chunk it is in', chunksFor(t0, t0).length, 1);
+}
+
+/* ------------------------------------------------------------------------ */
+section('a window has a ceiling on what it may pull');
+
+/* A reader selects a window by dragging across a figure, so selecting a whole
+   mission is one gesture — and the archive's longest record is 63 weeks. Left
+   uncapped that gesture is 63 simultaneous requests and 26.5 MB, measured by
+   extrapolation from the live 2026 shard at 1.28 B/value gzipped. */
+{
+  const week = CHUNK_SECONDS;
+  const t0 = 1_786_665_600;
+  ok('the cap is a small number of weeks',
+    MAX_WINDOW_CHUNKS >= 2 && MAX_WINDOW_CHUNKS <= 16, `${MAX_WINDOW_CHUNKS}`);
+
+  /* It has to be above anything this archive has been measured at, or an
+     ordinary reading of a short mission trips it. The whole of
+     `chanceMC40_NEFSC_outershelf_2026_nrt` is five weeks and 2.8 MB. */
+  const wholeMC40 = chunksFor(t0, t0 + 5 * week - 1);
+  ok('a five-week mission is under it — measured at 2.8 MB, 170 ms',
+    wholeMC40.length <= MAX_WINDOW_CHUNKS, `${wholeMC40.length} chunks`);
+
+  /* And it has to bite on the case it exists for: sd1065_tpos_2021. */
+  const wholeSeason = chunksFor(t0, t0 + 63 * week);
+  ok('a 63-week record is over it, which is the case it exists for',
+    wholeSeason.length > MAX_WINDOW_CHUNKS, `${wholeSeason.length} chunks`);
+
+  /* Counted from a boundary, because a span of N weeks that starts mid-week
+     touches N+1 chunks — which is the ordinary case and the reason the cap is
+     on chunks rather than on the window's length. */
+  const edge = chunkOf(t0) * week;
+  const atCap = chunksFor(edge, edge + MAX_WINDOW_CHUNKS * week - 1);
+  check('a window of exactly the cap is allowed', atCap.length, MAX_WINDOW_CHUNKS);
+  const overCap = chunksFor(edge, edge + MAX_WINDOW_CHUNKS * week);
+  check('and one second more is not', overCap.length, MAX_WINDOW_CHUNKS + 1);
+  const straddling = chunksFor(edge + 1, edge + 1 + MAX_WINDOW_CHUNKS * week - 1);
+  check('a window the same length but starting mid-week costs one chunk more',
+    straddling.length, MAX_WINDOW_CHUNKS + 1);
 }
 
 /* A sibling project site under the same domain, so the path climbs out of

@@ -27,6 +27,7 @@ export type { Resolved, ResolvedDataset, Statistic } from './resolve.ts';
 
 export {
   seasonOf, shardFor, chunkOf, chunkSpan, chunksFor, chunkPath, CHUNK_SECONDS,
+  MAX_WINDOW_CHUNKS,
 } from './shard.ts';
 
 export {

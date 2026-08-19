@@ -26,7 +26,7 @@ import {
   loadSeason, loadSeries, since, stitch,
   type CatalogEntry, type Chunk, type DetailRecord, type Finding, type Series,
 } from './data.ts';
-import { chunksFor, shardFor } from '@c4po/usv-vars';
+import { chunksFor, MAX_WINDOW_CHUNKS, shardFor } from '@c4po/usv-vars';
 import { PMEL, SEVERITIES } from '../config.ts';
 import { withBase } from './url.ts';
 
@@ -248,16 +248,47 @@ export function makeVehiclePage(root: Document | HTMLElement): VehiclePage {
       return;
     }
     const index = await loadSeason(shard);
-    detail = index?.records.find((r) => r.id === id);
-    if (!detail) {
+    const record = index?.records.find((r) => r.id === id);
+    if (!record) {
       detailNote.textContent = `Full rate is not published for this season yet — `
         + `${series!.doc.rows.toLocaleString()} points shown, drawn from `
         + `${series!.doc.fetchedRows.toLocaleString()} fetched.`;
       return;
     }
-    detailNote.textContent = `${detail.rows.toLocaleString()} samples at full rate are `
-      + 'available: narrow to a stretch and the figures reload at the rate the '
-      + 'instruments reported.';
+    /**
+     * **A tier that is not finer is not worth offering.** A record short
+     * enough to escape the eight-thousand-point budget is drawn whole, so
+     * its shard holds the samples already on screen — measured against the
+     * live 2026 shard, that is 14 of its 24 records, every Oshen among them,
+     * and on several the shard holds *fewer* rows than the overview because
+     * the two tiers were fetched minutes apart. Offering "full rate" there
+     * promises the reader an improvement that does not exist, and spends a
+     * request finding that out.
+     */
+    if (record.rows <= series!.doc.rows * 1.05) {
+      detailNote.textContent = 'Every sample this vehicle reported is already drawn — '
+        + `all ${series!.doc.rows.toLocaleString()} of them. There is no finer view.`;
+      return;
+    }
+    detail = record;
+    detailNote.textContent = availableNote();
+  }
+
+  /** What the reader is told while the overview is what they are looking at
+      and a finer view is there for the asking. */
+  function availableNote(): string {
+    return `${detail!.rows.toLocaleString()} samples at full rate are available: `
+      + 'narrow to a stretch and the figures reload at the rate the instruments '
+      + 'reported.';
+  }
+
+  /** Back to the overview, wherever a window has just stopped earning its
+      full-rate columns. The note says which, because the reader asked for a
+      window and has to be told what they got. */
+  function fallBack(why: string): void {
+    detailSource = null;
+    detailNote.textContent = why;
+    redraw();
   }
 
   /** Load the weeks a window covers, and hand them to the figures. */
@@ -265,7 +296,23 @@ export function makeVehiclePage(root: Document | HTMLElement): VehiclePage {
     await detailReady;
     if (!detail) return;
     const wanted = chunksFor(from, to).filter((c) => detail!.chunks.includes(c));
-    if (!wanted.length) return;
+
+    /* A window over a stretch the vehicle never reported through. Nothing to
+       fetch — and if a previous window left full-rate columns behind, they
+       describe a different fortnight and must go with it. */
+    if (!wanted.length) {
+      fallBack('No full-rate data was recorded in this window. '
+        + availableNote());
+      return;
+    }
+    /* Selecting the whole of a long mission is one drag. See
+       `MAX_WINDOW_CHUNKS`. */
+    if (wanted.length > MAX_WINDOW_CHUNKS) {
+      fallBack(`That window spans ${wanted.length} weeks — past the `
+        + `${MAX_WINDOW_CHUNKS} this page will pull at full rate. The overview is `
+        + 'shown instead; narrow it further for the rate the instruments reported.');
+      return;
+    }
 
     detailNote.textContent = `loading ${wanted.length} week`
       + `${wanted.length === 1 ? '' : 's'} at full rate…`;
@@ -273,8 +320,11 @@ export function makeVehiclePage(root: Document | HTMLElement): VehiclePage {
     try {
       chunks = await Promise.all(wanted.map((c) => loadChunk(shard, detail!.id, c)));
     } catch (error) {
-      detailNote.textContent = `Full rate could not be loaded (${(error as Error).message}). `
-        + 'The overview is still shown.';
+      /* A half-published shard, or a week that has not been uploaded yet.
+         The overview genuinely is what is shown, which means dropping any
+         columns an earlier window left. */
+      fallBack(`Full rate could not be loaded (${(error as Error).message}). `
+        + 'The overview is still shown.');
       return;
     }
     /* A window chosen while a previous one was loading: only the current one
@@ -472,11 +522,7 @@ export function makeVehiclePage(root: Document | HTMLElement): VehiclePage {
     /* Back to the overview: the full-rate columns cover one stretch and
        drawing the whole record from them would show only that stretch. */
     detailSource = null;
-    if (detail) {
-      detailNote.textContent = `${detail.rows.toLocaleString()} samples at full rate are `
-        + 'available: narrow to a stretch and the figures reload at the rate the '
-        + 'instruments reported.';
-    }
+    if (detail) detailNote.textContent = availableNote();
     for (const [, entry] of stack) setWindow(entry.root, NaN, NaN);
     const url = new URL(window.location.href);
     url.searchParams.delete('t0');

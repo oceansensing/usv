@@ -99,3 +99,23 @@ export function chunksFor(from: number, to: number): number[] {
 export function chunkPath(shard: string, id: string, chunk: number): string {
   return `../${shard}/${encodeURIComponent(id)}/${chunk}.json.gz`;
 }
+
+/**
+ * The most weeks one window may pull at full rate.
+ *
+ * A reader selects a window by dragging across a figure, so **selecting the
+ * whole mission is one gesture** — and nothing about that gesture says how
+ * long the mission is. Measured against the live shard, the whole of
+ * `chanceMC40_NEFSC_outershelf_2026_nrt` is five weeks, 2.8 MB and 170 ms,
+ * which is comfortable. But 2026 is the shortest season in the archive, and
+ * the same gesture on the longest record — `sd1065_tpos_2021`, 63 weeks —
+ * would be **63 simultaneous requests and 26.5 MB**, inflating to something
+ * like 170 MB of `Float64Array` before a single pixel is drawn.
+ *
+ * Eight is twice the largest window this archive has been measured at and
+ * about 5 MB at Saildrone rates. Past it the reader has selected a season
+ * rather than an event, and the overview is the instrument for that — so the
+ * page keeps showing it and says why, rather than spending a reader's
+ * connection on samples no screen can resolve.
+ */
+export const MAX_WINDOW_CHUNKS = 8;
