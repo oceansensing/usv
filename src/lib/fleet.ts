@@ -199,6 +199,11 @@ export function makeFleetMap(
     await Promise.all(workers);
     if (mine !== generation) return;
 
+    /* Last, after every track is in: the view is fitted to what actually
+       arrived, not to what was asked for. Which means the map sits at its
+       opening view while the files download — a full fleet is 40 requests —
+       and jumps to the fit when they land. That is the intended behaviour
+       and it reads as a bug from a screenshot taken halfway through. */
     if (bounds.isValid()) map.fitBounds(bounds, { padding: [24, 24] });
 
     function drawTrack(
