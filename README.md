@@ -111,7 +111,7 @@ npm run verify
 ```
 
 Builds, type-checks, gates the documentation and runs the nine offline test
-suites — 819 checks. Nothing in it touches the network.
+suites — 831 checks. Nothing in it touches the network.
 
 ## Where the data lives
 

@@ -47,7 +47,8 @@ import {
 import { coverageNote, run as runQc, worst } from '../packages/usv-qc/index.ts';
 import { decodeAtlas } from '../packages/teos10/index.ts';
 import {
-  Cache, decimateIndices, human, pool, roundColumn, roundTime, take, writeJson,
+  Cache, decimateIndices, human, infoCache, pool, roundColumn, roundTime, take,
+  writeJson,
 } from './lib/bake.mjs';
 
 const root = (p) => fileURLToPath(new URL(`../${p}`, import.meta.url));
@@ -143,6 +144,9 @@ fs.mkdirSync(OUT_DIR, { recursive: true });
 const CACHE_FORMAT = 2;
 
 const cache = new Cache(CACHE, CACHE_FORMAT);
+
+/* Written by `data:catalog`; read here rather than asking PMEL again. */
+const INFO = infoCache();
 const started = Date.now();
 
 /* -------------------------------------------------------------- build -- */
@@ -165,7 +169,7 @@ const started = Date.now();
 const summaries = await pool(targets, 1, async (d, index) => {
   const label = `[${String(index + 1).padStart(3)}/${targets.length}] ${d.id}`;
   try {
-    const stamp = Number.isFinite(d.end) ? Math.round(d.end) : 'none';
+    const stamp = Cache.stamp(d);
     const cached = refresh ? undefined : cache.read(d.id, stamp);
     if (cached) {
       writeJson(`${OUT_DIR}/${d.id}.json`, cached.series);
@@ -252,8 +256,8 @@ if (built === 0) {
 /* ------------------------------------------------------------ one record -- */
 
 async function buildOne(d) {
-  const info = JSON.parse(fs.readFileSync(
-    infoCachePath(d), 'utf8'));
+  const info = INFO.read(d.id, Cache.stamp(d));
+  if (!info) throw new Error(`no cached info for ${d.id} — run data:catalog first`);
   const resolved = resolveDataset(info.variables);
 
   /* 1. Cadence. Probed rather than assumed, because everything downstream is
@@ -450,11 +454,6 @@ async function buildOne(d) {
 }
 
 /* ------------------------------------------------------------- helpers -- */
-
-function infoCachePath(d) {
-  const stamp = Number.isFinite(d.end) ? Math.round(d.end) : 'none';
-  return root(`.cache/info/${d.id}@${String(stamp).replace(/[^0-9]/g, '')}.json`);
-}
 
 /**
  * The **finest** interval the vehicle reported at, from two small requests.

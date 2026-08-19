@@ -5,6 +5,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 /* ---------------------------------------------------------------- cache -- */
 
@@ -72,6 +73,13 @@ export class Cache {
     const tmp = `${p}.part`;
     fs.writeFileSync(tmp, JSON.stringify(value));
     fs.renameSync(tmp, p);
+  }
+
+  /** The stamp this cache keys a dataset by: its last report time, or
+      `none` where the record has none. One definition, because three
+      scripts key on it and two of them used to spell it out themselves. */
+  static stamp(d) {
+    return Number.isFinite(d.end) ? Math.round(d.end) : 'none';
   }
 
   /** Drop every entry for a dataset except the one still in use. */
@@ -201,3 +209,21 @@ export function writeJson(file, value) {
 
 export const human = (bytes) =>
   (bytes > 1e6 ? `${(bytes / 1e6).toFixed(1)} MB` : `${(bytes / 1e3).toFixed(0)} KB`);
+
+/**
+ * The dataset info, cached once and read by all three builds.
+ *
+ * `build-catalog` writes it; `build-series` and `build-detail` read it rather
+ * than asking PMEL again for something that has not changed. **It is one
+ * function because it used to be three** — the writer went through `Cache`
+ * and each reader spelled the filename out for itself, so putting a version
+ * in the key broke both readers at once and the build stopped dead. A path
+ * that three scripts agree on is a path none of them should be constructing.
+ */
+export const INFO_FORMAT = 1;
+
+export function infoCache() {
+  return new Cache(
+    fileURLToPath(new URL('../../.cache/info', import.meta.url)), INFO_FORMAT,
+  );
+}

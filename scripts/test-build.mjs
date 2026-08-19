@@ -22,7 +22,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { check, done, ok, section } from './lib/check.mjs';
-import { Cache } from './lib/bake.mjs';
+import { Cache, INFO_FORMAT, infoCache } from './lib/bake.mjs';
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'usv-cache-'));
 
@@ -83,6 +83,38 @@ section('pruning clears the versions nothing asks for any more');
   ok('the superseded entries go', dropped >= 2, `${dropped} dropped`);
   check('and the one still in use stays',
     v3.read('sd1065_tpos_2021', stamp)?.keep, true);
+}
+
+/* ------------------------------------------------------------------------ */
+section('one path, and no script spells it out for itself');
+
+/*
+ * The info cache is written by `data:catalog` and read by the other two
+ * builds. It used to be three separate constructions of the same filename —
+ * a `Cache` in the writer and a hand-rolled `infoCachePath` in each reader —
+ * so putting a version in the key broke both readers at once and the build
+ * stopped dead at 0 of 153. It is one function now, and this is what keeps it
+ * one.
+ */
+{
+  const scripts = ['build-catalog', 'build-series', 'build-detail']
+    .map((n) => [n, fs.readFileSync(new URL(`./${n}.mjs`, import.meta.url), 'utf8')]);
+
+  for (const [name, src] of scripts) {
+    ok(`${name} goes through the shared cache`, src.includes('infoCache()'));
+    ok(`  and does not build the path itself`, !/\.cache\/info/.test(src),
+      /\.cache\/info/.test(src) ? 'still has a literal path' : 'no literal path');
+    ok(`  nor the stamp`, !/Number\.isFinite\(d\.end\) \? Math\.round\(d\.end\)/.test(src));
+  }
+
+  /* Writer and readers must agree, which they can only do by construction. */
+  const a = infoCache().path('sd1065_tpos_2021', Cache.stamp({ end: 1_626_307_200 }));
+  const b = infoCache().path('sd1065_tpos_2021', Cache.stamp({ end: 1_626_307_200.4 }));
+  check('the same record resolves to the same entry', a, b);
+  ok('and the info format is declared', Number.isInteger(INFO_FORMAT) && INFO_FORMAT >= 1,
+    `v${INFO_FORMAT}`);
+  ok('a record with no end still keys somewhere',
+    typeof infoCache().path('x', Cache.stamp({ end: NaN })) === 'string');
 }
 
 fs.rmSync(tmp, { recursive: true, force: true });

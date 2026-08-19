@@ -21,10 +21,9 @@ import {
 } from '../packages/erddap-pmel/index.ts';
 import { resolveDataset } from '../packages/usv-vars/index.ts';
 import { unknownUnits } from '../packages/usv-qc/index.ts';
-import { Cache, human, pool, writeJson } from './lib/bake.mjs';
+import { Cache, infoCache, human, pool, writeJson } from './lib/bake.mjs';
 
 const OUT = fileURLToPath(new URL('../public/data/catalog.json', import.meta.url));
-const CACHE = fileURLToPath(new URL('../.cache/info', import.meta.url));
 
 const args = new Set(process.argv.slice(2));
 const refresh = args.has('--refresh');
@@ -35,16 +34,10 @@ console.log(`catalog ← ${PMEL}`);
 const datasets = await listDatasets(PMEL);
 console.log(`  ${datasets.length} USV datasets`);
 
-/**
- * What a cached entry of this build contains.
- *
- * Bump when `fetchInfo`/`parseInfo` change what they return — the entries
- * here are the *parsed* dataset info, not the bytes PMEL sent, so a change to
- * the parse leaves every archived record on the old shape. See `Cache`.
- */
-const CACHE_FORMAT = 1;
-
-const cache = new Cache(CACHE, CACHE_FORMAT);
+/* The dataset info, shared with the two builds that read it. Its format
+   version lives with it in `bake.mjs`, because a change to what `parseInfo`
+   returns has to invalidate this for every script at once. */
+const cache = infoCache();
 const kept = [];
 
 /* An `info` document changes only when the dataset is re-published, so it is
@@ -52,7 +45,7 @@ const kept = [];
    `Cache`. `--refresh` bypasses it for the case where PMEL corrected the
    metadata without the data moving, which the key cannot see. */
 const entries = await pool(datasets, 3, async (d) => {
-  const stamp = Number.isFinite(d.end) ? Math.round(d.end) : 'none';
+  const stamp = Cache.stamp(d);
   let doc = refresh ? undefined : cache.read(d.id, stamp);
   if (!doc) {
     try {

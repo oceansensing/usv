@@ -46,7 +46,7 @@ import {
 import {
   applyConversion, chunkOf, chunkSpan, resolveDataset, seasonOf, shardFor,
 } from '../packages/usv-vars/index.ts';
-import { Cache, human, roundColumn, roundTime, writeJson } from './lib/bake.mjs';
+import { Cache, infoCache, human, roundColumn, roundTime, writeJson } from './lib/bake.mjs';
 
 const root = (p) => fileURLToPath(new URL(`../${p}`, import.meta.url));
 const CATALOG = root('public/data/catalog.json');
@@ -117,6 +117,9 @@ fs.mkdirSync(OUT_DIR, { recursive: true });
 const CACHE_FORMAT = 1;
 
 const cache = new Cache(CACHE, CACHE_FORMAT);
+
+/* Written by `data:catalog`; read here rather than asking PMEL again. */
+const INFO = infoCache();
 const started = Date.now();
 
 const index = [];
@@ -126,7 +129,7 @@ let failed = 0;
 for (const [n, d] of targets.entries()) {
   const label = `[${String(n + 1).padStart(3)}/${targets.length}] ${d.id}`;
   try {
-    const stamp = Number.isFinite(d.end) ? Math.round(d.end) : 'none';
+    const stamp = Cache.stamp(d);
     const cached = refresh ? undefined : cache.read(d.id, stamp);
     const built = cached ?? await buildOne(d);
     if (!built) { failed++; console.log(`${label}  ! nothing fetched`); continue; }
@@ -188,7 +191,8 @@ if (!index.length) {
 /* ------------------------------------------------------------ one record -- */
 
 async function buildOne(d) {
-  const info = JSON.parse(fs.readFileSync(infoCachePath(d), 'utf8'));
+  const info = INFO.read(d.id, Cache.stamp(d));
+  if (!info) throw new Error(`no cached info for ${d.id} — run data:catalog first`);
   const resolved = resolveDataset(info.variables);
 
   const wanted = pickColumns(resolved);
@@ -279,11 +283,6 @@ async function buildOne(d) {
 }
 
 /* ------------------------------------------------------------- helpers -- */
-
-function infoCachePath(d) {
-  const stamp = Number.isFinite(d.end) ? Math.round(d.end) : 'none';
-  return root(`.cache/info/${d.id}@${String(stamp).replace(/[^0-9]/g, '')}.json`);
-}
 
 /** A record's span, cut into requests small enough to hold and to retry. */
 function splitSpan(start, end) {

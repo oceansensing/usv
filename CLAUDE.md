@@ -606,3 +606,14 @@ Each was written, run, and found to be wrong. Each now has a gate.
   now carries a format version, `Cache` refuses to be built without one, and
   the note beside it says the ritual: change what an entry contains, bump the
   version. *Gate:* `test:build`, a suite that exists for this one thing.
+- **Versioning the cache key broke the build at 0 of 153.** The info cache is
+  written by `build-catalog` and read by the other two builds — and its
+  filename was constructed in *three* places: a `Cache` in the writer, and an
+  identical hand-rolled `infoCachePath` copied into each reader. Putting a
+  version in `Cache.path` moved the writer and left both readers looking for
+  the old name, so every record failed with `ENOENT` and the build stopped.
+  It failed loudly and deployed nothing, which is the one thing that went
+  right: `Nothing was built. Not deploying this.` The path and the stamp are
+  each one function now. *Gate:* `test:build` asserts no build script contains
+  a literal `.cache/info` or spells the stamp out for itself — which found two
+  further copies of the stamp beyond the two that broke.
