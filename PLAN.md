@@ -98,7 +98,69 @@ which is what the glider site does not have and most of what this one is.
 
 ## Built and shipped
 
-*(sections filled in as each lands; see `CLAUDE.md` for how each works.)*
+### Five packages
+
+| package | what it is |
+|---|---|
+| `packages/erddap-pmel` | the PMEL client. Node only — PMEL sends no CORS header |
+| `packages/usv-vars` | **429 vendor column names onto 63 canonical quantities**, 97.9 % of dataset-columns resolved, plus units and the seven derived quantities |
+| `packages/usv-qc` | the nine checks, because the archive publishes none |
+| `packages/plot` | the SVG plot engine, vendored from `gliders` |
+| `packages/teos10` | seawater properties, vendored from `gliders` |
+
+### The data build
+
+`npm run data` fetches the catalog and every record from PMEL, converts
+units, derives U₁₀, wind stress, dewpoint, specific humidity and the TEOS-10
+surface set, runs the QC at the fetched resolution, then decimates to 8,000
+points and rounds each column to what its instrument resolves.
+
+- **The cache is keyed on each record's last report time**, so a historic
+  record is valid forever and an active mission invalidates itself. Nothing
+  to expire, nothing to tune. CI restores it between runs, which is what
+  makes a four-times-daily rebuild affordable.
+- Cold, 153 records take about 40 minutes; warm, only the active missions
+  move.
+- **JSON of rounded numbers**, because it gzips *smaller than Float32
+  binary* (315 KB against 356 KB on the largest record) and GitHub Pages
+  compresses `application/json` while leaving `application/octet-stream`
+  alone.
+
+### Five pages
+
+- **`/`** — the fleet. Every record on one map and in one searchable table,
+  filterable by vendor, campaign, year, quality and whether it is reporting
+  now. Tracks capped at 40 with the cap printed.
+- **`/vehicle/?dataset=<id>`** — one deployment. The track coloured by any
+  variable, a stack of up to six time series on one shared clock, a
+  property–property scatter, and the quality report, with each finding able
+  to open the variable it is about. Every choice is in the query string.
+- **`/campaign/?id=<slug>`** — the cohort. One polyline per vehicle, a roster
+  that is the map's legend, and **a Saildrone and an Oshen on one axis** —
+  which is the whole point of the canonicalization layer.
+- **`/qc/`** — what the nine checks look for, what each one is *not*, and
+  every record they found something in.
+- **`/about/`** — the sources, what was converted, what was computed here,
+  and what the checks do not claim.
+
+### The gates
+
+**683 offline checks** in eight suites, chained by `npm run verify`. Nothing
+in it touches the network, so it cannot fail because PMEL is having a bad
+morning — which is exactly when you least want the deploy blocked.
+
+`check:vendored` reports drift against the sibling `gliders` repository and
+does not fail the build, because that repository is not present in CI. It
+earned its keep before it was finished: `tokens.css` had drifted and was
+missing the three map-marker colours entirely.
+
+### Deployment
+
+`.github/workflows/deploy.yml`: verify → build (fetch + bake) → deploy, on
+push and **four times a day**. The schedule is the opposite decision from the
+sibling site's deliberate lack of one: that site renders nothing at build
+time, so a rebuild publishes identical bytes; here the build *is* the data
+path, so rebuilding is the only way the site gets fresher.
 
 ---
 
@@ -118,10 +180,23 @@ which is what the glider site does not have and most of what this one is.
 
 ## Open
 
-- The QC resolution ladder means a multi-year record is checked at 5 min
-  rather than 1 min; a 1-minute spike in a 2021 record is not looked for.
-  Stated on the page rather than hidden, but a second pass at native rate
-  for the archive is worth doing if the build budget allows.
-- Chance Maritime's `_ctd` and `_echosounder` file listings hold real
+- **`chanceMC29_NEFSC_nantucket_2026_fullres` times out.** The high-resolution
+  Chance product returns 408 after three attempts; it is the one record in
+  the archive the build cannot get. Probably needs a chunked fetch, which the
+  build otherwise has no use for.
+- **The QC resolution ladder** means a multi-year record is checked at 5 min
+  rather than 1 min; a one-minute spike in a 2021 record is not looked for.
+  Stated on every page rather than hidden, but a second pass at native rate
+  for the long archive records is worth doing if the build budget allows.
+- **Chance Maritime's `_ctd` and `_echosounder` file listings** hold real
   profile data behind per-cast files. Reading them would give this site its
-  only vertical structure.
+  only vertical structure — and the only figures on it with a depth axis.
+- **The comparison figure has no per-vehicle legend beyond the roster.** A
+  colour bar labelled 0–1 is honest and not friendly; a categorical legend
+  drawn from the roster would be better.
+- **`orderByClosest` alignment is assumed to hold for every sensor.** It was
+  measured on the Saildrone SBE37 at five minutes. A sensor reporting on some
+  other period — three minutes, say — would be sampled between its rows by
+  every rung on the ladder, and nothing would say so. A build-time check
+  comparing each column's missing fraction before and after decimation would
+  catch it.
