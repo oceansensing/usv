@@ -38,7 +38,13 @@ import { withBase } from '../lib/url';
       </div>
       <p class="muted">
         One shared time axis, so a pressure fall and a wind rise line up.
-        Drag across any panel to read a stretch of it.
+        <strong>Drag across any panel</strong> to window every panel at once;
+        the window is in the link.
+      </p>
+      <p class="window" data-window hidden>
+        <span class="eyebrow">window</span>
+        <span class="mono" data-window-label></span>
+        <button type="button" class="btn small" data-window-clear>whole record</button>
       </p>
       <div class="chips" data-chips></div>
       <div class="stack" data-stack></div>
@@ -150,6 +156,13 @@ import { withBase } from '../lib/url';
   .provenance p { margin-block: 0 var(--space-xs); }
 
   .stackwrap { margin-block-start: var(--space-xl); }
+
+  .window {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    margin-block: var(--space-sm) 0;
+  }
 
   .chips {
     display: flex;

@@ -58,6 +58,8 @@ export function makeVehiclePage(root: Document | HTMLElement): VehiclePage {
   const qcNoteEl = at<HTMLElement>('[data-qcnote]');
   const provEl = at<HTMLElement>('[data-provenance]');
   const errorEl = at<HTMLElement>('[data-error]');
+  const windowEl = at<HTMLElement>('[data-window]');
+  const windowLabel = at<HTMLElement>('[data-window-label]');
 
   let series: Series | null = null;
   let variables: Plottable[] = [];
@@ -124,6 +126,17 @@ export function makeVehiclePage(root: Document | HTMLElement): VehiclePage {
     drawChips();
     drawStack();
     drawScatter();
+
+    at<HTMLButtonElement>('[data-window-clear]')
+      .addEventListener('click', () => clearWindow());
+
+    /* A window in the link is applied once the panels exist to receive it —
+       assigning to an input that is not there yet does nothing at all. */
+    const t0 = Number(url.searchParams.get('t0'));
+    const t1 = Number(url.searchParams.get('t1'));
+    if (Number.isFinite(t0) && Number.isFinite(t1) && t1 > t0) {
+      windowStack(t0, t1);
+    }
   }
 
   const has = (key: string): boolean => Boolean(series?.columns.has(key))
@@ -257,6 +270,13 @@ export function makeVehiclePage(root: Document | HTMLElement): VehiclePage {
         style: 'line',
         height: 200,
         note: variable.note,
+        /* **Dragging across any panel windows the whole stack.** A shared
+           time axis is the reason the panels are stacked at all, and a
+           window applied to one of them breaks exactly that. The sibling
+           glider site uses this hook to re-fetch at finer resolution; here
+           the data is already in hand, so it sets the limits instead — which
+           is instant and needs no network. */
+        onSelectX: (from, to) => windowStack(from, to),
       });
       figure.update(source()!);
       stack.set(key, { figure, root: clone });
@@ -267,6 +287,64 @@ export function makeVehiclePage(root: Document | HTMLElement): VehiclePage {
     for (const key of chosen) {
       const entry = stack.get(key);
       if (entry) stackEl.append(entry.root);
+    }
+  }
+
+  /**
+   * Put a time window on every panel, and record it in the URL.
+   *
+   * The limits are written into the figures' own range boxes rather than
+   * held beside them, so a reader can see the window, type over it, and get
+   * it back with each figure's Reset — the same rule the boxes already
+   * follow for a limit the preset supplies.
+   */
+  function windowStack(from: number, to: number): void {
+    for (const [, entry] of stack) setWindow(entry.root, from, to);
+    const url = new URL(window.location.href);
+    url.searchParams.set('t0', String(Math.round(from)));
+    url.searchParams.set('t1', String(Math.round(to)));
+    window.history.replaceState(null, '', url);
+    showWindow(from, to);
+  }
+
+  /** Clear it, on every panel at once. */
+  function clearWindow(): void {
+    for (const [, entry] of stack) setWindow(entry.root, NaN, NaN);
+    const url = new URL(window.location.href);
+    url.searchParams.delete('t0');
+    url.searchParams.delete('t1');
+    window.history.replaceState(null, '', url);
+    showWindow(NaN, NaN);
+  }
+
+  /** A `datetime-local` has no zone and `figure.ts` reads it as UTC, which is
+      what every clock in this archive is in. */
+  const localStamp = (epoch: number): string =>
+    new Date(epoch * 1000).toISOString().slice(0, 16);
+
+  function setWindow(root: HTMLElement, from: number, to: number): void {
+    const lo = root.querySelector<HTMLInputElement>('[data-plot-x-lo]');
+    const hi = root.querySelector<HTMLInputElement>('[data-plot-x-hi]');
+    if (!lo || !hi) return;
+    const on = Number.isFinite(from) && Number.isFinite(to);
+    /* The box is a `number` field until the x axis is time, and assigning a
+       date string to a number input is silently dropped. */
+    if (lo.type !== 'datetime-local') lo.type = 'datetime-local';
+    if (hi.type !== 'datetime-local') hi.type = 'datetime-local';
+    lo.value = on ? localStamp(from) : '';
+    hi.value = on ? localStamp(to) : '';
+    /* `input`, not `change`: the range boxes are wired to `input` in
+       `figure.ts`, and a `change` event reaches no listener at all — the
+       limits are set, the figure never redraws, and the caption goes on
+       reporting the whole record. */
+    lo.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+
+  function showWindow(from: number, to: number): void {
+    const on = Number.isFinite(from) && Number.isFinite(to);
+    windowEl.hidden = !on;
+    if (on) {
+      windowLabel.textContent = `${isoMinute(from)} → ${isoMinute(to)}`;
     }
   }
 

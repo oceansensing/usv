@@ -16,11 +16,11 @@ request for one file.
 
 ### Every deployment, on one map
 
-All 153 records back to 2017, searchable by vehicle, campaign, institution
-or year, and filterable by vendor. The map draws each mission's **actual
-track**, coloured on a shared clock so two vehicles out the same season look
-alike, with a dot at each vehicle's last known position. Click any track to
-open it.
+All 153 records back to 2017, searchable by vehicle, campaign or
+institution, and filterable by vendor, year and what the quality checks
+found. The map draws each mission's **actual track**, coloured by the company
+that built the vehicle, with a dot at each one's last known position — filled
+where it is still reporting. Click any track to open it.
 
 ### One deployment
 
@@ -35,16 +35,19 @@ open it.
 - **The quality report** — every issue found in that record, on the figure
   and in a table.
 
-Narrow to any stretch of the mission with the clocks at the top or by
-dragging across a series. Every view is a link.
+Narrow any figure to a stretch of the mission with its own range boxes. The
+variables on screen, the track's colour, its scale and its range all live in
+the query string, so every view is a link.
 
 ### A campaign
 
-The vehicles that flew together, on one map and one set of axes: the 2026
-hurricane fleet's eight Saildrones and thirteen Oshens, the Nantucket Shoals
-survey, a TPOS season. Cross-vehicle deviation from the cohort median is
-what shows an instrument drifting when nothing about its own record looks
-wrong.
+The vehicles that flew together, on one map and one axis: the 2026 hurricane
+fleet's nine Saildrones and thirteen Oshens, the Nantucket Shoals survey, a
+TPOS season. Only the quantities the whole cohort carries are offered, and
+each one was resolved from its vendor's own column name and converted to a
+common unit first — **which is the only reason a Saildrone and an Oshen can
+share an axis at all**. Without it one is in m/s at 3.4 m and the other in
+knots at 0.66 m, and they look like different weather.
 
 ### What is wrong with the data
 
@@ -53,8 +56,9 @@ and on any Chance record, so every quality statement on this site is
 computed here and says so. Nine checks run over each record when the site is
 built — gaps, spikes, stuck sensors, impossible values, dead sensors,
 position dropouts, cadence changes, metadata faults and cohort outliers —
-and the findings are ranked fleet-wide on the [quality](#) page and drawn on
-the figure they belong to.
+and the findings are ranked fleet-wide on the
+[quality page](https://oceansensing.org/usv/qc/) and drawn on the figure they
+belong to.
 
 Nothing is ever silently altered. A finding marks the data; it does not
 remove it.
@@ -76,9 +80,12 @@ npm install
 npm run data
 ```
 
-Fetches the catalog and every series from PMEL — about 25 minutes cold, and
-the only step that needs the network. `npm run data:catalog` alone is quick
-and enough to build the site with an empty fleet.
+Fetches the catalog and every series from PMEL — **about 40 minutes** cold,
+and the only step that needs the network. One request at a time, because the
+server refuses concurrent ones from a single client. `npm run data:catalog`
+alone takes seconds and is enough to build the site with an empty fleet; and
+`npm run data:series -- --sample 8` builds a spread across the vendors and
+eras, which is enough to work on the pages.
 
 ```bash
 npm run dev
@@ -89,13 +96,13 @@ npm run verify
 ```
 
 Builds, type-checks, gates the documentation and runs the seven offline test
-suites. No test touches the network.
+suites — 683 checks. Nothing in it touches the network.
 
 ## Layout
 
 ```
 packages/erddap-pmel/  the PMEL tabledap client: catalog, metadata, queries
-packages/usv-vars/     304 vendor column names → one canonical variable set
+packages/usv-vars/     429 vendor column names → 63 canonical quantities
 packages/usv-qc/       the nine quality checks, and how a finding is ranked
 packages/plot/         the SVG plot engine, colormaps and PNG export
 packages/teos10/       seawater properties, from the GSW definitions
