@@ -146,6 +146,18 @@ check('a title that writes it as "drone NNNN"',
   vehicleOf('x', 'NOAA/PMEL 2019 Arctic Saildrone Mission, drone 1033'), 'SD-1033');
 check('a collection has no single vehicle', vehicleOf('all_swfsc_2023', ''), '');
 
+/* **A four-digit number after "Saildrone" is not always a hull number.**
+   `saildrone_2019_arctic_flux` is titled "Saildrone 2019 Arctic Flux Data" —
+   a multi-platform product for a season — and the first version read the
+   year as a vehicle called SD-2019, which then had its own page. Every hull
+   in this archive is 1005–1096. */
+check('a year in a title is not a hull number',
+  vehicleOf('saildrone_2019_arctic_flux', 'Saildrone 2019 Arctic Flux Data'), '');
+check('nor in the 2017 one',
+  vehicleOf('saildrone_2017_arctic_flux', 'Saildrone 2017 Arctic Flux Data'), '');
+check('while a real hull still resolves',
+  vehicleOf('x', 'NOAA PMEL TPOS 2017 NRT Saildrone 1005'), 'SD-1005');
+
 /* ------------------------------------------------------------------------ */
 section('a campaign is keyword-anchored, so a new season classifies itself');
 

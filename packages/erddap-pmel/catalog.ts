@@ -45,7 +45,14 @@ export function vendorOf(id: string, title: string, institution: string): Vendor
 export function vehicleOf(id: string, title: string): string {
   const sd = /(?:^|[^a-z])sd[_-]?(\d{3,4})/i.exec(id) ?? /saildrone\s+(\d{3,4})/i.exec(title)
     ?? /\bdrone\s+(\d{3,4})/i.exec(title);
-  if (sd) return `SD-${sd[1]}`;
+  /* **A four-digit number after the word "Saildrone" is not always a hull
+     number.** `saildrone_2019_arctic_flux` is titled "Saildrone 2019 Arctic
+     Flux Data" — a multi-platform product for a season, and the match read
+     the year as a vehicle called SD-2019. Every hull in this archive is
+     1005–1096, so a number that reads as a year is rejected outright rather
+     than range-checked against a list that would need editing when a new
+     hull is built. */
+  if (sd && !isYear(sd[1])) return `SD-${sd[1]}`;
 
   const oshen = /oshen[_-]?(P[CD]\d+)/i.exec(id) ?? /oshen\s+(P[CD]\d+)/i.exec(title);
   if (oshen) return oshen[1].toUpperCase();
@@ -55,6 +62,12 @@ export function vehicleOf(id: string, title: string): string {
 
   return '';
 }
+
+/** Whether a four-digit string is plausibly a year rather than a hull. */
+const isYear = (digits: string): boolean => {
+  const n = Number(digits);
+  return digits.length === 4 && n >= 1990 && n <= 2100;
+};
 
 /* ------------------------------------------------------------ campaign -- */
 
