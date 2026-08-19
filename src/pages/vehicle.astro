@@ -29,6 +29,10 @@ import { withBase } from '../lib/url';
         <h2 class="eyebrow">The record</h2>
         <dl data-facts></dl>
         <div class="provenance" data-provenance></div>
+        <div data-siblings-wrap hidden>
+          <h2 class="eyebrow">Also from this vehicle</h2>
+          <ul class="siblings" data-siblings></ul>
+        </div>
       </section>
     </div>
 
@@ -155,7 +159,26 @@ import { withBase } from '../lib/url';
 
   .provenance p { margin-block: 0 var(--space-xs); }
 
+  .siblings {
+    list-style: none;
+    padding: 0;
+    margin: var(--space-xs) 0 0;
+    font-size: var(--text-sm);
+    display: grid;
+    gap: 0.15rem;
+  }
+
   .stackwrap { margin-block-start: var(--space-xl); }
+
+  /* **`display: flex` beats `[hidden]`.** The UA stylesheet's
+     `[hidden] { display: none }` is an author-level rule of the lowest
+     specificity, and any author `display` on the same element wins — so the
+     banner showed on every page whether a window was set or not. Every
+     element this site toggles with `hidden` and also gives a `display` to
+     needs this line. */
+  .window[hidden] {
+    display: none;
+  }
 
   .window {
     display: flex;

@@ -158,6 +158,29 @@ ok('stroked plot paths do not fill', /fill:\s*none/.test(ALL_CSS));
 ok('Leaflet\'s stylesheet is in the bundle',
   /\.leaflet-container/.test(ALL_CSS) && /overflow:\s*hidden/.test(ALL_CSS));
 
+/* **An author `display` beats `[hidden]`.** The UA rule
+   `[hidden] { display: none }` is author-level and of the lowest
+   specificity, so any `display` this site sets on the same element wins and
+   the element shows whether the code hid it or not. It happened to the
+   vehicle page's window banner, which appeared on every record with no
+   window set. Every element given both needs the guard. */
+{
+  const displayed = [...ALL_CSS.matchAll(/\.([a-z-]+)\s*\{[^}]*display:\s*(flex|grid|block|inline-flex)/g)]
+    .map((m) => m[1]);
+  const guarded = new Set(
+    [...ALL_CSS.matchAll(/\.([a-z-]+)\[hidden\]/g)].map((m) => m[1]),
+  );
+  /* Only the classes the code actually toggles. A class with a `display`
+     that nothing ever hides needs no guard, and demanding one would be
+     noise. */
+  const toggled = ['window'];
+  for (const name of toggled) {
+    ok(`.${name} survives being hidden`,
+      !displayed.includes(name) || guarded.has(name),
+      guarded.has(name) ? 'guarded' : 'has a display and no [hidden] rule');
+  }
+}
+
 /* The map markers are the one set of colours judged against Esri's tiles
    rather than against the page, so they must not flip with the theme. */
 ok('the map marker tokens ship', /--map-here:/.test(ALL_CSS)

@@ -22,7 +22,8 @@ import { makeTrack, type Track } from './track.ts';
 import { makeTrackLegend } from './track-legend.ts';
 import { plottable, type Plottable } from './variables.ts';
 import {
-  duration, isoDay, isoMinute, loadSeries, since, type Finding, type Series,
+  duration, isoDay, isoMinute, loadCatalog, loadSeries, since,
+  type CatalogEntry, type Finding, type Series,
 } from './data.ts';
 import { PMEL, SEVERITIES } from '../config.ts';
 import { withBase } from './url.ts';
@@ -60,6 +61,8 @@ export function makeVehiclePage(root: Document | HTMLElement): VehiclePage {
   const errorEl = at<HTMLElement>('[data-error]');
   const windowEl = at<HTMLElement>('[data-window]');
   const windowLabel = at<HTMLElement>('[data-window-label]');
+  const siblingsEl = at<HTMLElement>('[data-siblings]');
+  const siblingsWrap = at<HTMLElement>('[data-siblings-wrap]');
 
   let series: Series | null = null;
   let variables: Plottable[] = [];
@@ -101,6 +104,7 @@ export function makeVehiclePage(root: Document | HTMLElement): VehiclePage {
     drawFacts();
     drawProvenance();
     drawQc();
+    void drawSiblings(id, doc.vehicle);
 
     /* The map is built once the container has a size. Leaflet measures at
        construction, and this page is still assembling. */
@@ -362,6 +366,62 @@ export function makeVehiclePage(root: Document | HTMLElement): VehiclePage {
       : has('wind_speed') ? 'wind_speed' : chosen[0] ?? 'time';
     scatter = makeFigure(host, { x, y, c: 'time', style: 'dots', dot: 2, height: 380 });
     scatter.update(source()!);
+  }
+
+  /* --------------------------------------------------------- siblings -- */
+
+  /**
+   * The other products this vehicle published on the same mission.
+   *
+   * **Eleven Chance datasets carry no observations at all** — they are
+   * `EDDTableFromFileNames` listings of CTD casts, echosounder files, CPICS
+   * imagery and raw ADCP, whose columns are `url`, `name` and `size`. The
+   * site cannot plot them and does not pretend to; it links them, because a
+   * reader looking at MC29's surface record is one click from the profile
+   * data this archive otherwise has none of, and nothing else on the site
+   * would tell them it exists.
+   */
+  async function drawSiblings(id: string, vehicle: string): Promise<void> {
+    if (!vehicle) { siblingsWrap.hidden = true; return; }
+    let catalog;
+    try {
+      catalog = await loadCatalog();
+    } catch {
+      siblingsWrap.hidden = true;
+      return;
+    }
+    const family = catalog.datasets.filter(
+      (d) => d.vehicle === vehicle && d.campaign === series!.doc.campaign && d.id !== id,
+    );
+    if (!family.length) { siblingsWrap.hidden = true; return; }
+    siblingsWrap.hidden = false;
+
+    siblingsEl.replaceChildren(...family.map((d) => sibling(d)));
+  }
+
+  function sibling(d: CatalogEntry): HTMLElement {
+    const li = document.createElement('li');
+    const plottable = d.kind !== 'files';
+
+    const link = document.createElement('a');
+    if (plottable) {
+      link.href = `${withBase('/vehicle/')}?dataset=${encodeURIComponent(d.id)}`;
+      link.textContent = d.variant ? `${d.variant} product` : d.title;
+    } else {
+      /* Straight to PMEL: there is nothing here to show, and sending a
+         reader to a page of this site that says so would waste the click. */
+      link.href = `${PMEL}/files/${encodeURIComponent(d.id)}/`;
+      link.textContent = `${d.variant || 'files'} — browse on PMEL`;
+    }
+    li.append(link);
+
+    const note = document.createElement('span');
+    note.className = 'muted';
+    note.textContent = plottable
+      ? ` · ${d.quantities.length} quantities`
+      : ' · files, not a time series';
+    li.append(note);
+    return li;
   }
 
   /* --------------------------------------------------------------- qc -- */
