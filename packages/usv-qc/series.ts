@@ -427,7 +427,7 @@ const clamp = (v: number, lo: number, hi: number): number => Math.min(hi, Math.m
  */
 export function dropout(
   time: Float64Array, values: Float64Array, quantity: string,
-  options: { tailHours?: number } = {},
+  options: { tailHours?: number; archived?: boolean } = {},
 ): Finding[] {
   const n = values.length;
   if (n < 20) return [];
@@ -449,13 +449,21 @@ export function dropout(
   if (present === 0) {
     return [{
       check: 'dropout',
-      severity: 'high',
+      /* **A note, not a fault.** The dataset declares a channel and never
+         publishes a number in it — an instrument that was not fitted on this
+         deployment, or one whose feed was never connected. Nothing was
+         *measured* wrongly, and grading it `high` put a red badge on most of
+         the archive: the 2024 Saildrones alone declare CDOM and backscatter
+         on every record and carry neither. It is still reported, because a
+         reader who plots it gets a blank figure and deserves to know which
+         kind of blank it is. */
+      severity: 'note',
       quantity,
-      summary: 'the column is present but empty for the whole record',
+      summary: 'the column is declared and carries no value anywhere in the record',
       detail: 'Every value is missing. The dataset declares this variable and never '
         + 'published a number in it, which is a different thing from the variable '
-        + 'being absent — and worth knowing, because a plot of it is blank rather '
-        + 'than missing.',
+        + 'being absent — and worth knowing, because a plot of it comes out blank '
+        + 'rather than missing.',
       start: time[0],
       end,
       count: n,
@@ -474,16 +482,39 @@ export function dropout(
      of its values present is genuinely ambiguous — that record falls through
      to the intermittent branch below, which is the honest answer. */
   if (tailRows >= 10 && tailPresent / tailRows < 0.1) {
+    /* **A mission ending is not a sensor failing, and the severity has to
+       know the difference.** On a record still reporting, a sensor that
+       stopped is something to act on today — PD13's sea temperature, dead
+       since 2026-08-14, is the case this check exists for. On a record that
+       ended months ago, the same shape is usually the science payload being
+       shut down before recovery, and grading it `high` put a red badge on
+       115 of 152 records, which is not a severity but a background colour.
+       What is left is the honest question: how much of the record does it
+       cost you. */
+    const lost = end - lastPresent;
+    const span = end - time[0];
+    const fraction = span > 0 ? lost / span : 0;
+    const severity: Severity = options.archived
+      ? (fraction > 0.2 ? 'medium' : 'low')
+      : 'high';
     findings.push({
       check: 'dropout',
-      severity: 'high',
+      severity,
       quantity,
-      summary: `no data since ${isoDay(lastPresent)}, while the vehicle kept reporting`,
+      summary: `no data since ${isoDay(lastPresent)}, while the vehicle kept reporting`
+        + (options.archived
+          ? ` — the last ${(100 * fraction).toFixed(0)} % of the record`
+          : ''),
       detail: `The last value was at ${isoTime(lastPresent)}, and the record continues `
         + `to ${isoTime(end)} with ${tailRows} rows in the final `
         + `${humanDuration(tail)} and ${tailPresent} of them carrying this variable. `
         + 'The vehicle is reporting and this sensor is not, which is a sensor failure '
-        + 'rather than a telemetry gap.',
+        + 'rather than a telemetry gap. '
+        + (options.archived
+          ? 'This record has ended, so this is most likely the science payload being '
+            + 'shut down before recovery rather than a fault — everything before '
+            + `${isoDay(lastPresent)} is unaffected.`
+          : 'This record is still reporting, so the sensor is out now.'),
       start: lastPresent,
       end,
       count: tailRows - tailPresent,

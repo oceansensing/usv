@@ -70,6 +70,13 @@ export function run(input: RunInput): Report {
 
   const findings: Finding[] = [];
 
+  /* Whether the mission is over. A month, matching `silent` — the same
+     threshold, because it is the same question: is this a record somebody is
+     still flying, or one that has been put away. */
+  const lastReport = time.length ? time[time.length - 1] : NaN;
+  const archived = Number.isFinite(lastReport)
+    && fetched - lastReport > 30 * 86400;
+
   /* -- the record as a whole ------------------------------------------- */
   findings.push(...gaps(time, cadenceSeconds));
   findings.push(...cadence(time));
@@ -99,7 +106,7 @@ export function run(input: RunInput): Report {
        which `dropout` finds from the trailing window regardless. */
     const own = reportingInterval(time, values);
     const sparse = Number.isFinite(own) && own > cadenceSeconds * 1.5;
-    for (const f of dropout(time, values, key)) {
+    for (const f of dropout(time, values, key, { archived })) {
       if (sparse && f.severity === 'medium') continue;
       findings.push(f);
     }
@@ -144,14 +151,19 @@ export function run(input: RunInput): Report {
  * Anything that stopped on its own day keeps its own finding.
  */
 export function mergeSimultaneousDropouts(findings: readonly Finding[]): Finding[] {
+  /* Grouped by severity as well as by day: a mission's payload shutting
+     down and a live vehicle's sensor failing are different events and must
+     not be merged into one finding that has to pick a severity for both. */
   const dead = findings.filter(
-    (f) => f.check === 'dropout' && f.severity === 'high' && f.quantity && f.start,
+    (f) => f.check === 'dropout' && f.quantity && f.start
+      && (f.severity === 'high' || f.severity === 'medium' || f.severity === 'low')
+      && /^no data since/.test(f.summary),
   );
   if (dead.length < 3) return [...findings];
 
   const byDay = new Map<string, Finding[]>();
   for (const f of dead) {
-    const day = new Date(f.start! * 1000).toISOString().slice(0, 10);
+    const day = `${f.severity}@${new Date(f.start! * 1000).toISOString().slice(0, 10)}`;
     const group = byDay.get(day) ?? [];
     group.push(f);
     byDay.set(day, group);
@@ -159,13 +171,14 @@ export function mergeSimultaneousDropouts(findings: readonly Finding[]): Finding
 
   const merged: Finding[] = [];
   const consumed = new Set<Finding>();
-  for (const [day, group] of byDay) {
+  for (const [key, group] of byDay) {
     if (group.length < 3) continue;
+    const day = key.split('@')[1];
     for (const f of group) consumed.add(f);
     const names = group.map((f) => f.quantity!).sort();
     merged.push({
       check: 'dropout',
-      severity: 'high',
+      severity: group[0].severity,
       summary: `${group.length} instruments stopped together on ${day}, while the `
         + 'vehicle kept reporting',
       detail: `${names.join(', ')}. Grouped because they stopped within the same day: `

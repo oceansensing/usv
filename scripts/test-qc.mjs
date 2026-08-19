@@ -265,9 +265,22 @@ section('dropout: dead is not the same as intermittent');
   const dead = Float64Array.from(v);
   for (let i = 700; i < 1440; i++) dead[i] = NaN;
   const f = dropout(t, dead, 'sea_temperature');
-  check('a sensor dead at the end of the record is high severity', f[0].severity, 'high');
+  check('a sensor dead at the end of a live record is high severity', f[0].severity, 'high');
   ok('and the summary says the vehicle kept reporting',
     /while the vehicle kept reporting/.test(f[0].summary), f[0].summary);
+
+  /* **A mission ending is not a sensor failing.** The same shape on an
+     archived record is the science payload being shut down before recovery,
+     and grading it `high` put a red badge on 115 of 152 records — which is
+     not a severity but a background colour. What is left is how much of the
+     record it costs you. */
+  const archived = dropout(t, dead, 'sea_temperature', { archived: true });
+  ok('the same shape on an archived record is not high',
+    archived[0].severity !== 'high', archived[0].severity);
+  ok('and it says the record has ended',
+    /record has ended/.test(archived[0].detail), archived[0].detail);
+  ok('and how much of it was lost', /% of the record/.test(archived[0].summary),
+    archived[0].summary);
 
   /* A sensor that stops for seven hours and is still stopped at the end of
      a 24-hour record leaves the trailing window a third full — not enough to
@@ -287,10 +300,13 @@ section('dropout: dead is not the same as intermittent');
 
 {
   const t = clock(1440, 60);
+  /* A note, not a fault: nothing was measured wrongly. The 2024 Saildrones
+     declare CDOM and backscatter on every record and carry neither, so
+     grading this `high` alone would flag most of the archive. */
   const f = dropout(t, new Float64Array(1440).fill(NaN), 'chlorophyll');
-  check('a column that is declared and never filled', f[0].severity, 'high');
-  ok('is distinguished from one that is absent',
-    /present but empty/.test(f[0].summary), f[0].summary);
+  check('a column declared and never filled is a note', f[0].severity, 'note');
+  ok('and is distinguished from one that is absent',
+    /carries no value anywhere/.test(f[0].summary), f[0].summary);
 }
 
 {
@@ -308,6 +324,8 @@ section('dropout: dead is not the same as intermittent');
   for (let i = 700; i < 1440; i++) sparseThenDead[i] = NaN;
   check('and a sparse column that dies is still caught',
     dropout(t, sparseThenDead, 'sea_temperature')[0].severity, 'high');
+  ok('  with the right summary',
+    /no data since/.test(dropout(t, sparseThenDead, 'sea_temperature')[0].summary));
 }
 
 /* ------------------------------------------------------------------------ */
