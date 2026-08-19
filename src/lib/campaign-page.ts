@@ -94,12 +94,19 @@ export function makeCampaignPage(root: Document): { load(slug: string | null): P
     document.title = `${campaign.label} · USV`;
     titleEl.textContent = campaign.label;
 
+    /* **A table of several vehicles is not a vehicle.** Every campaign that
+       has one also has the per-vehicle records it aggregates, so including
+       it would put the same measurements on the axis twice — once as
+       themselves and once interleaved with their neighbours' — and add a
+       line to the roster that no instrument produced. */
     const members = catalog.datasets
-      .filter((d) => campaign.datasets.includes(d.id) && d.rows)
+      .filter((d) => campaign.datasets.includes(d.id) && d.rows && !d.multiVehicle)
       .sort((a, b) => a.vehicle.localeCompare(b.vehicle));
+    const aggregate = catalog.datasets.filter(
+      (d) => campaign.datasets.includes(d.id) && d.multiVehicle);
     drawFacts(campaign, members, catalog.datasets.filter(
       (d) => campaign.datasets.includes(d.id),
-    ));
+    ), aggregate);
 
     const chosen = members.slice(0, MAX_VEHICLES);
     statusEl.textContent = `loading ${chosen.length} vehicles…`;
@@ -179,7 +186,10 @@ export function makeCampaignPage(root: Document): { load(slug: string | null): P
 
   /* -------------------------------------------------------------- one -- */
 
-  function drawFacts(c: Campaign, members: CatalogEntry[], all: CatalogEntry[]): void {
+  function drawFacts(
+    c: Campaign, members: CatalogEntry[], all: CatalogEntry[],
+    aggregate: CatalogEntry[] = [],
+  ): void {
     const findings = members.reduce((sum, d) => sum + (d.findings ?? 0), 0);
     const worstCount = members.filter((d) => d.severity === 'high').length;
     const rows: Array<[string, string]> = [
@@ -192,6 +202,10 @@ export function makeCampaignPage(root: Document): { load(slug: string | null): P
       ['Findings', `${findings} across the cohort`
         + (worstCount ? `, ${worstCount} record${worstCount === 1 ? '' : 's'} with a high-severity one` : '')],
     ];
+    if (aggregate.length) {
+      rows.push(['Also published', `${aggregate.length} multi-vehicle table`
+        + `${aggregate.length === 1 ? '' : 's'}, not compared here`]);
+    }
     factsEl.replaceChildren(...rows.flatMap(([k, v]) => {
       const dt = document.createElement('dt');
       dt.textContent = k;
