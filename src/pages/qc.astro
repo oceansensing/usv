@@ -1,0 +1,394 @@
+---
+/**
+ * Quality: what the nine checks look for, and every record they found
+ * something in.
+ *
+ * The explanation comes first and the digest second, deliberately. Every
+ * statement in the digest was made up by this site, and a reader who scrolls
+ * straight to a ranked list of "faults" without knowing what a `spike` is
+ * has been handed an accusation about somebody else's instrument.
+ */
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { withBase } from '../lib/url';
+
+const CHECKS = [
+  {
+    key: 'gap',
+    what: 'The vehicle or its link stopped reporting.',
+    how: 'Measured against the record\'s own median cadence, so ten minutes of '
+      + 'silence is a fault on a one-minute Saildrone and normal on a five-minute '
+      + 'Oshen.',
+    not: 'Not a sensor failing. A sensor that stops while the vehicle keeps '
+      + 'reporting is a dropout, and the two send you to different places.',
+  },
+  {
+    key: 'spike',
+    what: 'A step out and an immediate step back, in one sample.',
+    how: 'The threshold is the larger of six robust standard deviations of the '
+      + 'step distribution and a floor chosen per quantity — 3 hPa for pressure, '
+      + '1 °C for sea temperature. The scale is the median absolute deviation, '
+      + 'because a standard deviation is computed from the very outliers it is '
+      + 'meant to find.',
+    not: 'Not a step that stays. A front, a squall or a vehicle entering an eddy '
+      + 'moves a record and leaves it moved; nothing physical at these scales '
+      + 'moves and returns inside one sampling interval.',
+  },
+  {
+    key: 'stuck',
+    what: 'One value repeated for hours.',
+    how: 'Measured in elapsed time, not in samples.',
+    not: 'Not quantization. An Oshen publishes sea temperature to 0.05 °C and '
+      + 'humidity to 1 %, so a calm night legitimately repeats a value for many '
+      + 'consecutive samples — a check counting identical readings reports every '
+      + 'Oshen in the fleet as broken.',
+  },
+  {
+    key: 'range',
+    what: 'A value outside what the quantity can physically be.',
+    how: 'One wide table serves the whole archive, from an Arctic October to a '
+      + 'Caribbean August. What it catches is an undecoded −999 sentinel and a '
+      + 'unit that was never converted.',
+    not: 'Not "unusual". 880 hPa is a category-5 core, and being inside one is '
+      + 'the entire point of this fleet.',
+  },
+  {
+    key: 'dropout',
+    what: 'A sensor missing where the vehicle is not.',
+    how: 'Dead and intermittent are reported separately: 90 % of the final twelve '
+      + 'hours empty is dead; a high missing fraction with a live tail is '
+      + 'intermittent. Sensors that stop within the same day are grouped, because '
+      + 'a payload losing power is one event and not twelve.',
+    not: 'Not sparseness. A Saildrone\'s CTD reports every five minutes into a '
+      + 'one-minute record — 80 % of rows empty, and a perfectly healthy '
+      + 'instrument.',
+  },
+  {
+    key: 'cadence',
+    what: 'The reporting interval changed part-way through the record.',
+    how: 'Compared as a ratio, so 1→2 minutes counts as much as 30→60.',
+    not: 'Not a fault in itself. It matters because it changes what every other '
+      + 'statistic over the whole record means.',
+  },
+  {
+    key: 'position',
+    what: 'Missing fixes, the null island, and jumps no USV could make.',
+    how: 'A Saildrone makes about 3 m/s downwind; anything over 8 m/s between two '
+      + 'valid fixes is a bad fix, not a fast vehicle. 0°N 0°E is called out on '
+      + 'its own — it is in the Gulf of Guinea, and it drags a track across an '
+      + 'ocean the vehicle never entered.',
+    not: 'Not a reason to distrust the measurements in those rows.',
+  },
+  {
+    key: 'metadata',
+    what: 'Units missing, damaged, or contradicted by the values.',
+    how: 'Reported, never silently corrected. Oshen humidity declares '
+      + '“units = 1” and publishes percent; Chance publishes no units at all on '
+      + 'pressure and chlorophyll; two datasets carry “¡C”, which is “°C” written '
+      + 'as Mac Roman and read back as Latin-1.',
+    not: 'Not a criticism of anyone. These are near-real-time products from '
+      + 'active missions.',
+  },
+  {
+    key: 'silent',
+    what: 'A record that was recently reporting and has stopped.',
+    how: 'Only within a month of the last report. Beyond that a record is '
+      + 'archived, not silent, and the catalog already shows when it ended.',
+    not: 'Not a lost vehicle. A recovery, a link failure and a finished mission '
+      + 'look identical from here.',
+  },
+];
+---
+
+<BaseLayout wide title="Quality">
+  <div class="container wide">
+    <div class="topline">
+      <h1 class="figure-title">Quality</h1>
+      <p class="eyebrow" data-counts></p>
+    </div>
+
+    <div class="prose">
+      <p>
+        <strong>The PMEL archive publishes no quality flags on almost all of
+        this data.</strong> The 2026 hurricane fleet, every Oshen and every
+        Chance Maritime record carry no QC column at all. Ten older Saildrone
+        datasets carry <code>RH_QC</code>, <code>TEMP_AIR_QC</code>,
+        <code>WND_QC</code> and a data-mode column, and that is the entire QC
+        content of 153 records.
+      </p>
+      <p>
+        So every quality statement on this site is one this site made. Nine
+        checks run over each record when the site is built, at the finest
+        resolution the build fetched, and each record's page prints the
+        resolution its checks ran at — <strong>a check that did not look at a
+        rate must not imply that it did</strong>.
+      </p>
+      <p>
+        <strong>A finding marks the data. It never removes or alters it.</strong>
+        Everything flagged below is still drawn on its vehicle's page, still in
+        the numbers, exactly as PMEL published it. What is offered is a second
+        opinion, not a correction.
+      </p>
+    </div>
+
+    <h2 class="figure-title section">The nine checks</h2>
+    <ul class="checks">
+      {CHECKS.map((c) => (
+        <li>
+          <h3><span class="check mono">{c.key}</span> {c.what}</h3>
+          <p>{c.how}</p>
+          <p class="not"><strong>Not:</strong> {c.not}</p>
+        </li>
+      ))}
+    </ul>
+
+    <h2 class="figure-title section">What they found</h2>
+    <form class="filters" data-filters onsubmit="return false">
+      <label class="field">
+        <span>Check</span>
+        <select name="check">
+          <option value="">all</option>
+          {CHECKS.map((c) => <option value={c.key}>{c.key}</option>)}
+        </select>
+      </label>
+      <label class="field">
+        <span>Severity</span>
+        <select name="severity">
+          <option value="">all</option>
+          <option value="high">high</option>
+          <option value="medium">medium</option>
+          <option value="low">low</option>
+          <option value="note">note</option>
+        </select>
+      </label>
+      <label class="field grow">
+        <span>Search</span>
+        <input type="search" name="text" placeholder="vehicle, campaign, quantity" />
+      </label>
+    </form>
+
+    <div class="tablewrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Record</th>
+            <th>Campaign</th>
+            <th class="num">Findings</th>
+            <th>Worst</th>
+            <th>What</th>
+          </tr>
+        </thead>
+        <tbody data-rows></tbody>
+      </table>
+      <p class="muted" data-more></p>
+    </div>
+
+    <p class="muted foot">
+      Counts come from the catalog, which each record's page expands into the
+      findings themselves. The <a href={withBase('/about/')}>about page</a>
+      says where the data came from and what was converted on the way.
+    </p>
+  </div>
+</BaseLayout>
+
+<script>
+  import { loadCatalog, since, type CatalogEntry } from '../lib/data.ts';
+  import { withBase } from '../lib/url.ts';
+
+  const PAGE = 250;
+  const form = document.querySelector('[data-filters]') as HTMLFormElement;
+  const rowsEl = document.querySelector('[data-rows]') as HTMLElement;
+  const moreEl = document.querySelector('[data-more]') as HTMLElement;
+  const countsEl = document.querySelector('[data-counts]') as HTMLElement;
+
+  const catalog = await loadCatalog();
+  const built = catalog.datasets.filter((d) => d.kind !== 'files' && d.rows);
+
+  const RANK: Record<string, number> = { high: 4, medium: 3, low: 2, note: 1 };
+
+  form.addEventListener('input', render);
+  render();
+
+  function render() {
+    const data = new FormData(form);
+    const check = String(data.get('check') ?? '');
+    const severity = String(data.get('severity') ?? '');
+    const text = String(data.get('text') ?? '').toLowerCase().trim();
+
+    const shown = built.filter((d) => {
+      if (check && !(d.checks?.[check])) return false;
+      if (severity && d.severity !== severity) return false;
+      if (text) {
+        const hay = `${d.id} ${d.vehicle} ${d.campaignLabel} ${d.quantities.join(' ')}`
+          .toLowerCase();
+        for (const word of text.split(/\s+/)) if (word && !hay.includes(word)) return false;
+      }
+      return (d.findings ?? 0) > 0;
+    });
+
+    /* Worst first, then most findings. A record with a single high-severity
+       finding outranks one with forty notes, because the ranking is about
+       what a reader has to act on. */
+    shown.sort((a, b) => (RANK[b.severity ?? ''] ?? 0) - (RANK[a.severity ?? ''] ?? 0)
+      || (b.findings ?? 0) - (a.findings ?? 0)
+      || a.id.localeCompare(b.id));
+
+    const total = built.reduce((n, d) => n + (d.findings ?? 0), 0);
+    const clean = built.filter((d) => !(d.findings ?? 0)).length;
+    countsEl.textContent = `${total.toLocaleString()} findings across `
+      + `${built.length} records · ${clean} with none · `
+      + `built ${since(catalog.seriesBuilt ?? catalog.fetched)}`;
+
+    rowsEl.replaceChildren(...shown.slice(0, PAGE).map(row));
+    moreEl.textContent = shown.length > PAGE
+      ? `${shown.length - PAGE} more match and are not listed.` : '';
+  }
+
+  function row(d: CatalogEntry): HTMLElement {
+    const tr = document.createElement('tr');
+
+    const name = document.createElement('td');
+    const a = document.createElement('a');
+    a.href = `${withBase('/vehicle/')}?dataset=${encodeURIComponent(d.id)}`;
+    a.textContent = d.vehicle || d.id;
+    name.append(a);
+    const sub = document.createElement('span');
+    sub.className = 'sub mono';
+    sub.textContent = d.id;
+    name.append(sub);
+    tr.append(name);
+
+    const campaign = document.createElement('td');
+    campaign.textContent = d.campaignLabel;
+    tr.append(campaign);
+
+    const n = document.createElement('td');
+    n.className = 'num mono';
+    n.textContent = String(d.findings ?? 0);
+    tr.append(n);
+
+    const sev = document.createElement('td');
+    const tag = document.createElement('span');
+    tag.className = `tag ${d.severity ?? 'clean'}`;
+    tag.textContent = d.severity ?? 'clean';
+    sev.append(tag);
+    tr.append(sev);
+
+    const what = document.createElement('td');
+    what.className = 'mono what';
+    /* The checks that fired, with their counts — enough to know whether to
+       open the record without loading a megabyte to find out. */
+    what.textContent = Object.entries(d.checks ?? {})
+      .sort((x, y) => y[1] - x[1])
+      .map(([k, v]) => `${k}×${v}`)
+      .join(' ');
+    tr.append(what);
+
+    return tr;
+  }
+</script>
+
+<style>
+  .section { margin-block: var(--space-xl) var(--space-sm); }
+
+  .checks {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(22rem, 1fr));
+    gap: var(--space-md);
+  }
+
+  .checks li {
+    border-inline-start: 3px solid var(--border-strong);
+    padding-inline-start: var(--space-sm);
+  }
+
+  .checks h3 {
+    font-size: var(--text-base);
+    margin: 0 0 var(--space-2xs);
+    font-weight: 600;
+  }
+
+  .checks p {
+    margin: 0 0 var(--space-2xs);
+    font-size: var(--text-sm);
+    color: var(--text-muted);
+  }
+
+  .checks .not { color: var(--text-muted); }
+
+  .check {
+    display: inline-block;
+    font-size: 0.78em;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--accent);
+    border: 1px solid var(--border-strong);
+    border-radius: 999px;
+    padding: 0 0.5em;
+    vertical-align: 0.1em;
+  }
+
+  .filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: end;
+    gap: var(--space-sm);
+    margin-block-end: var(--space-md);
+  }
+
+  .field.grow { flex: 1 1 16rem; }
+
+  .tablewrap { overflow-x: auto; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--text-sm);
+  }
+
+  th {
+    text-align: start;
+    font-weight: 600;
+    border-block-end: 1px solid var(--border-strong);
+    padding: var(--space-2xs) var(--space-xs);
+    white-space: nowrap;
+  }
+
+  td {
+    border-block-end: 1px solid var(--border);
+    padding: var(--space-2xs) var(--space-xs);
+    vertical-align: baseline;
+  }
+
+  .num { text-align: end; font-variant-numeric: tabular-nums; }
+
+  .foot { margin-block-start: var(--space-lg); }
+</style>
+
+<style is:global>
+  [data-rows] .sub {
+    display: block;
+    font-size: 0.78em;
+    color: var(--text-muted);
+  }
+
+  [data-rows] .what {
+    font-size: 0.8em;
+    color: var(--text-muted);
+  }
+
+  [data-rows] .tag {
+    display: inline-block;
+    padding: 0.05em 0.5em;
+    border-radius: 999px;
+    font-size: 0.8em;
+    font-family: var(--font-mono);
+    border: 1px solid var(--border-strong);
+  }
+
+  [data-rows] .tag.high { border-color: #b3261e; color: #b3261e; }
+  [data-rows] .tag.medium { border-color: #a15c00; color: #a15c00; }
+  [data-rows] .tag.clean { border-color: #1c6b3c; color: #1c6b3c; }
+</style>

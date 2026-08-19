@@ -1,0 +1,167 @@
+---
+/**
+ * Where the data came from, what was done to it, and what this site does not
+ * claim.
+ */
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { LAB, PMEL, REPO } from '../config';
+import { withBase } from '../lib/url';
+---
+
+<BaseLayout title="About">
+  <div class="container">
+    <div class="topline">
+      <h1 class="figure-title">About</h1>
+    </div>
+
+    <div class="prose">
+      <p class="lede">
+        Tracks, time series and quality control for every Saildrone, Oshen and
+        Chance Maritime uncrewed surface vehicle published on the
+        <a href={PMEL}>NOAA PMEL ERDDAP</a> — 153 deployments, 2017 to now,
+        active and historic.
+      </p>
+
+      <h2>Where the data comes from</h2>
+      <p>
+        Everything here is NOAA's. The vehicles are operated by PMEL, AOML and
+        NEFSC with Saildrone Inc., Oshen and Chance Maritime Technologies, and
+        published on the PMEL ERDDAP. Each record's page links to its own
+        ERDDAP dataset, which carries the licence and the acknowledgement that
+        govern it; this site republishes neither more nor differently.
+      </p>
+      <p>
+        <strong>This site is not live, and it cannot be.</strong>
+        <code>data.pmel.noaa.gov</code> sends no
+        <code>Access-Control-Allow-Origin</code> header on any response, so a
+        page in your browser cannot read it at all. The data here was fetched
+        by the build, checked, and written out as JSON this origin serves.
+        Every page prints when its record was fetched. If you need the current
+        hour, follow the ERDDAP link on the record and take it from the source.
+      </p>
+
+      <h2>What was done to the numbers</h2>
+      <p>
+        <strong>Nothing was removed and nothing was smoothed.</strong> Three
+        things were changed, and all three are stated on the page where they
+        apply:
+      </p>
+      <ul>
+        <li>
+          <strong>Units were converted</strong> where the archive is
+          inconsistent. Every Oshen publishes wind in knots and every other
+          vehicle in m/s; one Chance column publishes a bearing in radians.
+          Each record's quality report lists every conversion applied to it.
+        </li>
+        <li>
+          <strong>Records were decimated</strong> to at most 8,000 points, by
+          keeping every <em>n</em>th real sample rather than by averaging — an
+          average would put numbers on screen that no instrument reported. The
+          quality checks ran <em>before</em> that, on the finest resolution the
+          build fetched.
+        </li>
+        <li>
+          <strong>Values were rounded</strong> to what each instrument
+          resolves: sea temperature to 0.0001 °C, pressure to 0.01 hPa,
+          position to five decimals, and so on.
+        </li>
+      </ul>
+
+      <h2>What was computed here</h2>
+      <p>
+        Seven quantities are derived rather than published, and each is marked
+        with an <span class="mono">ƒ</span> in the variable list:
+      </p>
+      <ul>
+        <li>
+          <strong>U₁₀</strong>, the wind adjusted to 10 m through a neutral
+          logarithmic profile from the sensor's own height — 0.66 m on an
+          Oshen, about 3.4 m on a Saildrone and published per record because
+          the wing moves. <strong>Without it the two cannot be compared:</strong>
+          the Oshen adjustment is +31 %. Neutral is an assumption, not a
+          measurement; in a strongly stable surface layer it over-corrects.
+        </li>
+        <li>
+          <strong>Wind stress</strong>, ρ<sub>a</sub> C<sub>D</sub> U₁₀², with
+          the Large &amp; Pond (1981) drag coefficient.
+        </li>
+        <li>
+          <strong>Dewpoint</strong> and <strong>specific humidity</strong>,
+          from the Magnus form with Alduchov &amp; Eskridge (1996)
+          coefficients.
+        </li>
+        <li>
+          <strong>Absolute Salinity, Conservative Temperature, σ₀, spiciness
+          and sound speed</strong>, from TEOS-10 at the surface. Every variable
+          named <em>pressure</em> on a USV is atmospheric, so the sea pressure
+          is a constant 0 dbar — feeding a barometer to a seawater routine as
+          decibars inflates in-situ density by 4.3 kg/m³ and sound speed by
+          17 m/s, and every number that comes back still looks like seawater.
+        </li>
+      </ul>
+
+      <h2>What the quality checks do and do not claim</h2>
+      <p>
+        The archive publishes no quality flags on almost all of this data, so
+        every quality statement here was made by this site. The
+        <a href={withBase('/qc/')}>quality page</a> says what each of the nine
+        checks looks for and — more usefully — what each one is <em>not</em>.
+      </p>
+      <p>
+        A finding is a second opinion, not a correction. It marks the data and
+        never alters it. A record with nothing found is a record these nine
+        checks found nothing in, which is a smaller claim than "clean".
+      </p>
+
+      <h2>What is not here</h2>
+      <ul>
+        <li>
+          <strong>Analysis.</strong> Intercomparison, storm context and glider
+          collocation live in
+          <a href={LAB.analysis}>NOAA-USV-analysis</a>. This site shows what
+          the vehicles measured and what is wrong with it; it does not draw
+          conclusions from it.
+        </li>
+        <li>
+          <strong>Vertical structure.</strong> These are surface vehicles.
+          Eleven Chance Maritime file listings hold CTD casts, echosounder
+          files and imagery behind per-cast files — real profile data, and the
+          only vertical structure this archive has. Reading them is open work.
+        </li>
+        <li>
+          <strong>Every column.</strong> Each record carries at most 40 of its
+          variables here, chosen canonical-first. The ERDDAP link on every page
+          has all of them at full resolution.
+        </li>
+      </ul>
+
+      <h2>Credits</h2>
+      <p>
+        Built by <strong>Donglai Gong</strong> (Virginia Institute of Marine
+        Science, William &amp; Mary) at the
+        <a href={LAB.url}>Collaboratory for Physical Oceanography</a>, with
+        Claude (Anthropic). Source at <a href={REPO}>oceansensing/usv</a>; all
+        rights reserved.
+      </p>
+      <p>
+        Sibling sites: <a href={LAB.gliders}>gliders</a>, for the IOOS Glider
+        DAC, which shares this one's plot engine and TEOS-10 implementation.
+        Basemap by Esri — GEBCO, NOAA, National Geographic.
+      </p>
+    </div>
+  </div>
+</BaseLayout>
+
+<style>
+  .lede {
+    font-size: var(--text-lg);
+    color: var(--text-muted);
+  }
+
+  h2 {
+    font-size: var(--text-lg);
+    margin-block: var(--space-lg) var(--space-xs);
+  }
+
+  li { margin-block-end: var(--space-xs); }
+</style>

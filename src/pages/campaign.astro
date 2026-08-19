@@ -1,0 +1,175 @@
+---
+/**
+ * A campaign, or the list of them. `?id=<slug>` picks one.
+ *
+ * The comparison figure on this page is what the whole canonicalization
+ * layer is for: a Saildrone and an Oshen on one axis, in one unit, at one
+ * measurement height.
+ */
+import BaseLayout from '../layouts/BaseLayout.astro';
+import PlotFigure from '../components/PlotFigure.astro';
+import { withBase } from '../lib/url';
+---
+
+<BaseLayout wide title="Campaigns">
+  <div class="container wide">
+    <!-- The list. Shown when no campaign is named. -->
+    <div data-campaigns-wrap hidden>
+      <div class="topline">
+        <h1 class="figure-title">Campaigns</h1>
+      </div>
+      <p class="lede">
+        The missions these vehicles flew, and who flew them together. A
+        campaign page puts every vehicle in a cohort on one map and one axis.
+      </p>
+      <ul class="campaigns" data-campaigns></ul>
+    </div>
+
+    <!-- One campaign. -->
+    <div data-campaign hidden>
+      <div class="topline">
+        <h1 class="figure-title" data-title></h1>
+        <a class="eyebrow" href={withBase('/campaign/')}>← all campaigns</a>
+      </div>
+
+      <div class="figure-full split">
+        <figure class="map-figure">
+          <figcaption class="topline">
+            <h2 class="figure-title">Where they went</h2>
+          </figcaption>
+          <div class="map" data-map role="application" aria-label="Campaign tracks"></div>
+          <p class="muted mono" data-status></p>
+        </figure>
+        <section class="facts">
+          <h2 class="eyebrow">The campaign</h2>
+          <dl data-facts></dl>
+          <h2 class="eyebrow">Vehicles</h2>
+          <ul class="roster" data-roster></ul>
+        </section>
+      </div>
+
+      <section class="comparewrap">
+        <div class="topline">
+          <h2 class="figure-title">The cohort on one axis</h2>
+          <label class="field inline">
+            <span class="eyebrow">quantity</span>
+            <select data-quantity></select>
+          </label>
+        </div>
+        <p class="muted">
+          Only the quantities every vehicle here carries are offered — a line
+          for one vehicle out of twelve is not a comparison. Every one of them
+          was resolved from its vendor's own column name and converted to a
+          common unit before being drawn; without that a Saildrone in m/s and
+          an Oshen in knots would sit on this axis looking like different
+          weather.
+        </p>
+        <div data-compare>
+          <PlotFigure id="compare" title="Across the cohort" />
+        </div>
+      </section>
+    </div>
+  </div>
+</BaseLayout>
+
+<script>
+  import { makeCampaignPage } from '../lib/campaign-page.ts';
+
+  const slug = new URL(window.location.href).searchParams.get('id');
+  await makeCampaignPage(document).load(slug);
+</script>
+
+<style>
+  .lede {
+    max-width: var(--prose-width);
+    color: var(--text-muted);
+    margin-block: 0 var(--space-md);
+  }
+
+  .campaigns {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(20rem, 1fr));
+    gap: var(--space-md);
+  }
+
+  .campaigns :global(.campaign) {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: var(--space-sm);
+  }
+
+  .campaigns :global(.campaign p) {
+    margin-block: var(--space-2xs) 0;
+    font-size: var(--text-sm);
+  }
+
+  .campaigns :global(.live) {
+    display: inline-block;
+    margin-block-start: var(--space-2xs);
+    font-family: var(--font-mono);
+    font-size: 0.8em;
+    color: #1c6b3c;
+  }
+
+  .split {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(16rem, 1fr);
+    gap: var(--space-lg);
+    align-items: start;
+  }
+
+  @media (max-width: 60rem) {
+    .split { grid-template-columns: 1fr; }
+  }
+
+  .map {
+    height: clamp(18rem, 42vh, 30rem);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg-subtle);
+  }
+
+  .map-figure { margin: 0; }
+
+  .facts dl {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: var(--space-2xs) var(--space-sm);
+    margin: var(--space-xs) 0 var(--space-md);
+    font-size: var(--text-sm);
+  }
+
+  .facts dt { color: var(--text-muted); white-space: nowrap; }
+  .facts dd { margin: 0; }
+
+  .roster {
+    list-style: none;
+    padding: 0;
+    margin: var(--space-xs) 0 0;
+    font-size: var(--text-sm);
+    display: grid;
+    gap: 0.15rem;
+  }
+
+  .roster :global(.swatch) {
+    display: inline-block;
+    width: 0.8rem;
+    height: 0.8rem;
+    border-radius: 2px;
+    margin-inline-end: var(--space-2xs);
+    vertical-align: -0.1em;
+  }
+
+  .comparewrap { margin-block-start: var(--space-xl); }
+
+  .field.inline {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2xs);
+  }
+
+  .field.inline select { min-width: 14rem; }
+</style>
