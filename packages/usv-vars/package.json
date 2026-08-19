@@ -1,0 +1,13 @@
+{
+  "name": "@c4po/usv-vars",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Canonical variable names, units and derived quantities for USV records",
+  "main": "index.ts",
+  "types": "index.ts",
+  "dependencies": {
+    "@c4po/erddap-pmel": "0.1.0",
+    "@c4po/teos10": "0.1.0"
+  }
+}
