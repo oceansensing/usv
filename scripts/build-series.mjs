@@ -125,7 +125,24 @@ if (sampleCount) {
 
 console.log(`${targets.length} records to build`);
 fs.mkdirSync(OUT_DIR, { recursive: true });
-const cache = new Cache(CACHE);
+/**
+ * What a cached entry of this build contains.
+ *
+ * Bump on **any** change to what a built series holds: the quality checks and
+ * their wording, the canonical names, the derived quantities, the rounding,
+ * the fields of the file. An archived record's `maxTime` never moves again,
+ * so without a bump the fix reaches only the vehicles still reporting.
+ *
+ * 2 — `coverageNote` compared the fetch resolution against the spacing of the
+ *     rows it was handed rather than the vehicle's own rate, so 46 records
+ *     said their one-minute artifacts had been looked for when the checks ran
+ *     at two or five minutes. The report also gained
+ *     `sampledCadenceSeconds`.
+ * 1 — the first published shape.
+ */
+const CACHE_FORMAT = 2;
+
+const cache = new Cache(CACHE, CACHE_FORMAT);
 const started = Date.now();
 
 /* -------------------------------------------------------------- build -- */

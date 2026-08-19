@@ -35,7 +35,16 @@ console.log(`catalog ← ${PMEL}`);
 const datasets = await listDatasets(PMEL);
 console.log(`  ${datasets.length} USV datasets`);
 
-const cache = new Cache(CACHE);
+/**
+ * What a cached entry of this build contains.
+ *
+ * Bump when `fetchInfo`/`parseInfo` change what they return — the entries
+ * here are the *parsed* dataset info, not the bytes PMEL sent, so a change to
+ * the parse leaves every archived record on the old shape. See `Cache`.
+ */
+const CACHE_FORMAT = 1;
+
+const cache = new Cache(CACHE, CACHE_FORMAT);
 const kept = [];
 
 /* An `info` document changes only when the dataset is re-published, so it is

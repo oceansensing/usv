@@ -9,27 +9,47 @@ import path from 'node:path';
 /* ---------------------------------------------------------------- cache -- */
 
 /**
- * A file cache keyed on the dataset **and its last report time**.
+ * A file cache keyed on the dataset, its last report time, **and the format
+ * version of what is stored**.
  *
- * The key is what makes this correct rather than merely fast: a historic
- * record is immutable, so its entry is valid forever, and an active mission's
+ * The first two make it correct rather than merely fast: a historic record's
+ * data is immutable, so its entry stays valid, and an active mission's
  * `maxTime` advances every few minutes, so its entry invalidates itself. No
  * expiry, no staleness window, nothing to tune.
+ *
+ * **The third is there because what is cached is derived, and derivations
+ * change.** These entries are not upstream responses — they hold quality
+ * findings, canonical variable names, derived quantities, the rounding, and
+ * the sentences the page prints. Keyed on the data alone, a fix to any of
+ * that reaches only the records still reporting: an archived record's
+ * `maxTime` never moves again, so the old file is served forever and the
+ * change silently never lands. That happened — `coverageNote` was corrected
+ * on 46 records, the build ran green, and all 46 came back with the old
+ * sentence because none of them had reported since. `version` is the fix, and
+ * bumping it is the whole ritual: **change what a built entry contains, bump
+ * the version.**
  *
  * It is what keeps a rebuild short. Fetching all 153 records cold is most of
  * an hour against PMEL; with the cache warm only the active missions move,
  * and in CI `actions/cache` restores the directory between runs.
  */
 export class Cache {
-  constructor(dir) {
+  constructor(dir, version) {
+    if (!Number.isInteger(version) || version < 1) {
+      /* Not a default, deliberately. A caller that has not thought about the
+         version is a caller whose next fix will not reach its data. */
+      throw new Error('Cache needs an integer format version — see its note');
+    }
     this.dir = dir;
+    this.version = version;
     fs.mkdirSync(dir, { recursive: true });
   }
 
   path(id, stamp) {
-    /* The stamp goes in the filename rather than inside the file, so a stale
-       entry is simply a name nothing asks for and `prune` can find it. */
-    return path.join(this.dir, `${id}@${String(stamp).replace(/[^0-9]/g, '')}.json`);
+    /* Both go in the filename rather than inside the file, so a stale entry
+       is simply a name nothing asks for and `prune` can find it. */
+    return path.join(this.dir,
+      `${id}@${String(stamp).replace(/[^0-9]/g, '')}v${this.version}.json`);
   }
 
   read(id, stamp) {

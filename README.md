@@ -110,8 +110,8 @@ npm run dev
 npm run verify
 ```
 
-Builds, type-checks, gates the documentation and runs the eight offline test
-suites — 802 checks. Nothing in it touches the network.
+Builds, type-checks, gates the documentation and runs the nine offline test
+suites — 819 checks. Nothing in it touches the network.
 
 ## Where the data lives
 

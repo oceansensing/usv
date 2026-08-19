@@ -106,7 +106,17 @@ if (!targets.length) {
 
 console.log(`${shard}: ${targets.length} records`);
 fs.mkdirSync(OUT_DIR, { recursive: true });
-const cache = new Cache(CACHE);
+/**
+ * What a cached entry of this build contains.
+ *
+ * Bump on any change to a chunk's shape or contents — the columns kept, the
+ * rounding, the chunk boundaries, the index fields. A closed season is built
+ * once, so a change that does not bump this reaches nothing at all. See
+ * `Cache`.
+ */
+const CACHE_FORMAT = 1;
+
+const cache = new Cache(CACHE, CACHE_FORMAT);
 const started = Date.now();
 
 const index = [];

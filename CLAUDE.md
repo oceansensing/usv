@@ -476,6 +476,7 @@ are real PMEL responses captured 2026-08-19.
 
 | suite | what it protects |
 |---|---|
+| `test:build` | that a fix to a derived file reaches the records that stopped reporting |
 | `test:erddap` | query construction, the CSV parse, 404-means-empty, the ladder |
 | `test:vars` | that every naming era resolves to the same canonical variable |
 | `test:qc` | each check against a record whose faults are known |
@@ -485,7 +486,7 @@ are real PMEL responses captured 2026-08-19.
 | `test:contrast` | every colour pair that ships |
 | `test:pages` | the base path, the CSP, and every CSS rule jsdom cannot see |
 
-`npm run verify` chains build, type-check, the doc gate and all seven.
+`npm run verify` chains build, type-check, the doc gate and all nine.
 `check:vendored` is run by hand: it compares the copied packages against the
 sibling repository, which is not present in CI.
 
@@ -593,3 +594,15 @@ Each was written, run, and found to be wrong. Each now has a gate.
 - **"against a vehicle reporting every 1 minutes."** Rounding an interval to
   whole minutes, on an archive whose commonest cadence is one minute. Only
   ever visible on the branch that could not fire.
+- **The fix landed, the build went green, and the data did not change.**
+  `coverageNote` was corrected on 46 records; the site rebuilt and deployed
+  successfully; all 46 came back with the old sentence. The build cache is
+  keyed on the record and its last report time — correct for the *data*, which
+  is immutable once a mission ends, and wrong for the *file*, which holds
+  findings, canonical names, derived quantities, rounding and the sentences
+  the page prints. **An archived record's `maxTime` never moves again, so the
+  old file is served forever.** Every one of the 46 was a vehicle that had
+  stopped reporting, which is exactly the population the fix was for. The key
+  now carries a format version, `Cache` refuses to be built without one, and
+  the note beside it says the ritual: change what an entry contains, bump the
+  version. *Gate:* `test:build`, a suite that exists for this one thing.
