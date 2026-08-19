@@ -19,7 +19,7 @@ const read = (p) => (fs.existsSync(p) ? fs.readFileSync(p, 'utf8') : '');
 
 section('the documents exist');
 
-for (const doc of ['README.md', 'CLAUDE.md', 'PLAN.md', 'LICENSE']) {
+for (const doc of ['README.md', 'CLAUDE.md', 'PLAN.md', 'NEXT.md', 'LICENSE']) {
   ok(`${doc} is present`, read(doc).length > 200, `${read(doc).length} bytes`);
 }
 
@@ -72,7 +72,7 @@ section('every page is described');
   const pages = fs.readdirSync('src/pages')
     .filter((f) => f.endsWith('.astro'))
     .map((f) => f.replace(/\.astro$/, ''));
-  const docs = read('README.md') + read('CLAUDE.md') + read('PLAN.md');
+  const docs = read('README.md') + read('CLAUDE.md') + read('PLAN.md') + read('NEXT.md');
   for (const page of pages) {
     if (page === '404') continue;
     const route = page === 'index' ? '/' : `/${page}/`;
@@ -102,7 +102,7 @@ section('the facts the site rests on are written down, with their numbers');
   /* Every one of these is a *measured* number that a later edit could
      invalidate without noticing. They are in the docs so a reader can check
      them; they are checked here so they cannot quietly disappear. */
-  const docs = read('CLAUDE.md') + read('PLAN.md') + read('README.md')
+  const docs = read('CLAUDE.md') + read('PLAN.md') + read('README.md') + read('NEXT.md')
     + read('packages/erddap-pmel/CLAUDE.md') + read('packages/usv-vars/CLAUDE.md')
     + read('packages/usv-qc/CLAUDE.md');
 
@@ -114,10 +114,27 @@ section('the facts the site rests on are written down, with their numbers');
     ['the U10 adjustment', /\+?31\s*%/],
     ['the sea-pressure trap', /4\.28|4\.3 kg/],
     ['the number of plottable records', /153/],
+    ['the full-rate archive size', /794 MB/],
+    ['the Pages published-site limit', /1 GB/],
+    ['the shard naming scheme', /usv-data-/],
   ];
   for (const [what, pattern] of facts) {
     ok(`${what} is documented`, pattern.test(docs));
   }
+}
+
+section('the shard scheme is written down where it is needed');
+
+{
+  /* The season repositories are a published contract — their URLs are what
+     the site fetches — so the arrangement has to be findable from the
+     documents rather than only from `shard.ts`. */
+  const docs = read('README.md') + read('CLAUDE.md') + read('PLAN.md') + read('NEXT.md');
+  ok('the same-origin argument is recorded', /same origin/i.test(docs));
+  ok('and why a season rather than some other split', /immutable/i.test(docs));
+  ok('and that a closed season is built once', /built once/i.test(docs));
+  ok('the live shard is named', docs.includes('usv-data-2026'));
+  ok('and the detail build command', /data:detail/.test(docs));
 }
 
 section('the live URL is stated the same way everywhere');

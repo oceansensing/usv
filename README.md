@@ -10,7 +10,9 @@ Chance Maritime uncrewed surface vehicle published on the
 A static site. There is no server and no database: the observations are
 fetched from PMEL when the site is built, checked, and written out as plain
 JSON that your browser reads from this origin. Opening a vehicle is one
-request for one file.
+request for one file — and narrowing to a stretch of a mission fetches that
+stretch at **the rate the instruments actually reported**, one minute on most
+of the fleet.
 
 ## What it shows
 
@@ -34,6 +36,12 @@ where it is still reporting. Click any track to open it.
   storm.
 - **The quality report** — every issue found in that record, on the figure
   and in a table.
+
+Narrowing to a stretch reloads every figure at **full resolution**. The page
+opens on an overview of eight thousand points however long the mission, says
+how many full-rate samples exist, and fetches only the weeks you have
+windowed into — about 380 KB each. A three-day window on a Saildrone is 4,320
+samples where the overview had 720.
 
 Narrow any figure to a stretch of the mission with its own range boxes. The
 variables on screen, the track's colour, its scale and its range all live in
@@ -80,12 +88,19 @@ npm install
 npm run data
 ```
 
-Fetches the catalog and every series from PMEL — **about 40 minutes** cold,
+Fetches the catalog and every overview from PMEL — **about 40 minutes** cold,
 and the only step that needs the network. One request at a time, because the
 server refuses concurrent ones from a single client. `npm run data:catalog`
 alone takes seconds and is enough to build the site with an empty fleet; and
 `npm run data:series -- --sample 8` builds a spread across the vendors and
 eras, which is enough to work on the pages.
+
+```bash
+npm run data:detail -- --season 2026
+```
+
+Builds the **full-resolution** tier for one season — every sample, in weekly
+gzipped chunks. It is published from its own repository; see below.
 
 ```bash
 npm run dev
@@ -95,18 +110,47 @@ npm run dev
 npm run verify
 ```
 
-Builds, type-checks, gates the documentation and runs the seven offline test
-suites — 683 checks. Nothing in it touches the network.
+Builds, type-checks, gates the documentation and runs the eight offline test
+suites — 741 checks. Nothing in it touches the network.
+
+## Where the data lives
+
+Two tiers, in two kinds of repository.
+
+| | what | where |
+|---|---|---|
+| **overview** | 8,000 points per record, every record | built into this site |
+| **full rate** | every sample, weekly chunks | one repository per season |
+
+The full-rate archive is **794 MB gzipped**, against GitHub Pages' 1 GB
+published-site limit — so it cannot sit beside a site that is itself 250 MB.
+It lives in `oceansensing/usv-data-<season>`, each published as its own Pages
+site.
+
+Those are the **same origin** as this one: a project repository under an
+organisation with a Pages custom domain serves under that domain, so
+`oceansensing.org/usv-data-2026/` sits beside `oceansensing.org/usv/`. The
+detail tier therefore costs no cross-origin request and no relaxation of this
+site's content security policy.
+
+A season repository holds no code. Its workflow checks this one out and runs
+`npm run data:detail`, which needs no token because both are public. And
+because **a closed season cannot change**, its shard is built once and never
+rebuilt — only the current season is on a schedule.
+
+Published so far: **[2026](https://oceansensing.org/usv-data-2026/)**. The
+other nine seasons are the same command with a different `--season`.
 
 ## Layout
 
 ```
 packages/erddap-pmel/  the PMEL tabledap client: catalog, metadata, queries
-packages/usv-vars/     429 vendor column names → 63 canonical quantities
+packages/usv-vars/     429 vendor column names → 63 canonical quantities,
+                       and which season repository holds a record's full rate
 packages/usv-qc/       the nine quality checks, and how a finding is ranked
 packages/plot/         the SVG plot engine, colormaps and PNG export
 packages/teos10/       seawater properties, from the GSW definitions
-scripts/               the build's data fetch, and the test suites
+scripts/               the data builds, and the test suites
 src/                   the site
 ```
 
