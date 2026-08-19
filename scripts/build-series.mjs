@@ -130,7 +130,22 @@ const started = Date.now();
 
 /* -------------------------------------------------------------- build -- */
 
-const summaries = await pool(targets, 3, async (d, index) => {
+/**
+ * **One request at a time, because PMEL says so in as many words.**
+ *
+ * A request that arrives while another from the same client is still running
+ * does not queue politely — it waits and then fails with a 408 whose body
+ * reads *"Timeout waiting for your other requests to process. Please make
+ * just one request at a time."* The first full build ran three at a time and
+ * lost `chanceMC29_NEFSC_nantucket_2026_fullres` to it three attempts
+ * running, and every manual request made while that build was going got the
+ * same 408.
+ *
+ * It costs nothing. Measured early on, four parallel requests to this server
+ * took 4.3 s against ~4.4 s of serial time — it serialises internally
+ * anyway, so the only thing concurrency bought was failures.
+ */
+const summaries = await pool(targets, 1, async (d, index) => {
   const label = `[${String(index + 1).padStart(3)}/${targets.length}] ${d.id}`;
   try {
     const stamp = Number.isFinite(d.end) ? Math.round(d.end) : 'none';

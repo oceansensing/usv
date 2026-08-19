@@ -136,6 +136,28 @@ therefore `[1, 2, 5, 10, 15, 20, 30, 60, 120, 180, 360]` minutes and every
 rung above 2 divides by 5. **A rung of 7 or 25 minutes would quietly return
 a mostly-empty CTD record**, and nothing on screen would say why.
 
+### One request at a time, and the server says so in as many words
+
+A request that arrives while another from the same client is still running
+does not queue — it waits about two minutes and then **fails**:
+
+```
+408  Request Timeout: TimeoutException: Timeout waiting for your other
+     requests to process. Please make just one request at a time.
+```
+
+The sibling glider client runs three concurrently against the IOOS DAC, and
+carrying that number over was the mistake. The first full build ran three at
+a time and lost `chanceMC29_NEFSC_nantucket_2026_fullres` on all three
+attempts; every manual request made while that build was running got the same
+408, which is how it was found.
+
+It buys nothing either way — four parallel requests measured 4.3 s against
+~4.4 s of serial time, so the server serialises internally regardless. The
+only thing the concurrency added was failures. `build-series.mjs` uses a pool
+of **one**, and a 408 gets a twenty-second backoff rather than the ordinary
+1.5.
+
 ### Two API facts that break a client written from the documentation
 
 - **An empty result is an HTTP 404**, with `message="Not Found: Your query
@@ -360,6 +382,17 @@ Each was written, run, and found to be wrong. Each now has a gate.
 - **`unitFault` matched the damage rather than the legitimate set.** Written
   that way round, `m s-1` is flagged for its hyphen. It now tests for a
   non-ASCII character that is *not* one a unit may contain.
+- **Concurrency three, copied from the sibling client, cost a dataset.**
+  Above, in §2. It is the clearest case on this site of a number that was
+  right for one server being wrong for another, and the only reason it was
+  found is that a manual request during a build got the same error.
+- **A severity that fired on 76 % of records.** The first full build put a
+  high-severity badge on 115 of 152. Two causes, the same mistake twice:
+  treating a fact about the archive as a fault in the data. A column declared
+  and never filled is an instrument that was not fitted, and a sensor that
+  stopped at the end of a record that ended eight months ago is a mission
+  being packed up. Both are worth reporting; neither is "unusable where it
+  fires".
 - **The site's own `tokens.css` had drifted from the sibling's** and was
   missing the three map-marker colours entirely, so the exported PNG's
   markers and the page's disagreed. *Gate:* `test:contrast` compares the

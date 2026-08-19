@@ -153,7 +153,11 @@ export async function fetchTable(
       if (!response.ok) {
         const empty = response.status === 404;
         throw new ErddapError(
-          `${id}: ${response.status} ${response.statusText}`, response.status, empty,
+          `${id}: ${response.status} ${response.statusText}`
+          + (response.status === 408
+            ? ' — the server was still busy with another request from this client'
+            : ''),
+          response.status, empty,
         );
       }
       const parsed = await parseJsonlCsvStream(response, {
@@ -174,7 +178,17 @@ export async function fetchTable(
          the same question and get the same 404 three times. */
       if (error instanceof ErddapError && error.empty) throw error;
       lastError = error;
-      if (attempt < retries) await sleep(1500 * (attempt + 1));
+      if (attempt < retries) {
+        /* **A 408 here means the server is busy with this client's *other*
+           request, not that the query is too large.** ERDDAP's message is
+           explicit: "Timeout waiting for your other requests to process.
+           Please make just one request at a time." Retrying immediately
+           just joins the same queue, so it gets a much longer backoff —
+           and `build-series.mjs` runs one request at a time for the same
+           reason. */
+        const busy = error instanceof ErddapError && error.status === 408;
+        await sleep((busy ? 20_000 : 1500) * (attempt + 1));
+      }
     }
   }
   throw lastError;

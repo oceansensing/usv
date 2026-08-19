@@ -110,6 +110,28 @@ a 400: the argument is a CSV list of order-by columns *plus* an interval, so
 it needs at least two parts. `intervalString` writes hours above the hour
 because the number must be an integer, and `1.5hours` is not one.
 
+## One request at a time, and the server says so
+
+A request that arrives while another from the same client is still running
+**fails**, with a 408 whose body reads:
+
+```
+Request Timeout: TimeoutException: Timeout waiting for your other requests
+to process. Please make just one request at a time.
+```
+
+Not a queue, not a slowdown — a refusal, after a two-minute wait. The first
+full build ran three at a time and lost
+`chanceMC29_NEFSC_nantucket_2026_fullres` to it on all three attempts, and
+every manual request made while that build was running got the same 408.
+
+The sibling glider client runs three concurrently against the IOOS DAC, and
+carrying that number over here was the mistake. It buys nothing either way:
+four parallel requests measured 4.3 s against ~4.4 s of serial time, so the
+server serialises internally regardless, and the only thing the concurrency
+added was failures. `build-series.mjs` uses a pool of **one**, and a 408 gets
+a twenty-second backoff rather than the ordinary 1.5.
+
 ## Two API facts that break a client written from the documentation
 
 - **An empty result is an HTTP 404**, body
