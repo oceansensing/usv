@@ -19,9 +19,9 @@ import fs from 'node:fs';
 import { check, done, near, ok, section } from './lib/check.mjs';
 import { parseJsonlCsv } from '../packages/erddap-pmel/index.ts';
 import {
-  cadence, dropout, gaps, haversine, MAX_MARKS, PLAUSIBLE, position, range,
-  rank, reportingInterval, robustScale, sample, silent, spikes, stuck, tally,
-  worst,
+  cadence, directionConvention, dropout, gaps, haversine, MAX_MARKS,
+  mergeSimultaneousDropouts, PLAUSIBLE, position, range, rank,
+  reportingInterval, robustScale, sample, silent, spikes, stuck, tally, worst,
 } from '../packages/usv-qc/index.ts';
 
 /** A clean series: `n` samples every `dt` seconds from `t0`. */
@@ -401,6 +401,68 @@ section('silent');
     silent(now - 10 * 86400, now)[0].severity, 'medium');
   ok('what it cannot tell apart is said out loud',
     /cannot tell those apart/.test(silent(now - 10 * 86400, now)[0].detail));
+}
+
+/* ------------------------------------------------------------------------ */
+section('bearings: two conventions, both standard');
+
+{
+  /* Several Chance columns publish a bearing on −180…180 and everything else
+     on 0…360. Neither is wrong, and a 0–360 range reported one of them as
+     5,636 impossible values on the first build. What is left is to say which
+     a record used, because two vehicles on one axis under different
+     conventions put the same heading 360° apart and the figure looks fine. */
+  const signed = Float64Array.from({ length: 200 }, (_, i) => -180 + (i * 1.8));
+  const f = directionConvention(signed, 'heading');
+  check('the signed convention is reported', f.length, 1);
+  check('as a note, not a fault', f[0].severity, 'note');
+  ok('and it says which', /−180…180|-180/.test(f[0].summary), f[0].summary);
+
+  const unsigned = Float64Array.from({ length: 200 }, (_, i) => i * 1.8);
+  check('0…360 says nothing', directionConvention(unsigned, 'heading').length, 0);
+  /* The range must accept both, or a whole convention reads as a fault. */
+  check('and neither is out of range',
+    range(clock(200), signed, 'heading', '°').length
+    + range(clock(200), unsigned, 'heading', '°').length, 0);
+}
+
+/* ------------------------------------------------------------------------ */
+section('instruments that stop together are one event');
+
+{
+  /* A Chance payload ending on 2026-01-27 produced nine identical "no data
+     since" findings, one per column, filling the top of the report with the
+     same fact. */
+  const at = 1_769_500_000;
+  const make = (quantity, day, severity = 'high') => ({
+    check: 'dropout', severity, quantity,
+    summary: `no data since ${day}, while the vehicle kept reporting`,
+    start: at, end: at + 86400,
+  });
+  const merged = mergeSimultaneousDropouts([
+    make('chlorophyll', '2026-01-27'), make('cdom', '2026-01-27'),
+    make('backscatter', '2026-01-27'), make('salinity', '2026-01-27'),
+    { check: 'gap', severity: 'low', summary: 'a gap' },
+  ]);
+  const groups = merged.filter((f) => /instruments stopped together/.test(f.summary));
+  check('four became one', groups.length, 1);
+  check('and it counts them', groups[0].count, 4);
+  ok('and names them', /chlorophyll/.test(groups[0].detail), groups[0].detail);
+  ok('while anything else is untouched',
+    merged.some((f) => f.check === 'gap'));
+
+  /* Grouped by severity as well as by day: a live vehicle's sensor failing
+     and an archived payload shutdown must not merge into one finding that
+     has to pick a severity for both. */
+  const mixed = mergeSimultaneousDropouts([
+    make('a', '2026-01-27', 'high'), make('b', '2026-01-27', 'high'),
+    make('c', '2026-01-27', 'high'),
+    make('d', '2026-01-27', 'low'), make('e', '2026-01-27', 'low'),
+    make('f', '2026-01-27', 'low'),
+  ]);
+  const two = mixed.filter((f) => /instruments stopped together/.test(f.summary));
+  check('two severities make two groups', two.length, 2);
+  check('and each keeps its own', new Set(two.map((f) => f.severity)).size, 2);
 }
 
 /* ------------------------------------------------------------------------ */

@@ -15,7 +15,7 @@ export type { Check, Finding, Report, Severity } from './types.ts';
 export { MAX_MARKS, SEVERITY_RANK, rank, worst } from './types.ts';
 
 export {
-  gaps, spikes, stuck, range, dropout, cadence,
+  gaps, spikes, stuck, range, dropout, cadence, directionConvention,
   robustScale, reportingInterval, sample, humanDuration, isoTime, isoDay,
   MIN_SPIKE, PLAUSIBLE,
 } from './series.ts';
@@ -27,5 +27,5 @@ export {
   unknownUnits, has,
 } from './metadata.ts';
 
-export { run, tally, coverageNote } from './report.ts';
+export { run, tally, coverageNote, mergeSimultaneousDropouts } from './report.ts';
 export type { RunInput } from './report.ts';
