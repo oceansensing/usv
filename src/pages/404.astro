@@ -1,0 +1,63 @@
+---
+/**
+ * The page GitHub Pages serves for anything that is not a file.
+ *
+ * Which is more than a typo here: there is **no route per dataset**, so
+ * `/usv/vehicle/sd1030_hurricane_2026` — the URL a reader would guess, and
+ * the one another site might link — is a 404 rather than a page. The script
+ * below recognises that shape and forwards it to the query string the site
+ * actually uses, so a guessed link works instead of dead-ending.
+ */
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { withBase } from '../lib/url';
+---
+
+<BaseLayout title="Not found">
+  <div class="container">
+    <div class="topline">
+      <h1 class="figure-title">Not here</h1>
+    </div>
+    <div class="prose">
+      <p data-message>
+        There is no page at that address.
+      </p>
+      <p>
+        This site has five: the <a href={withBase('/')}>fleet</a>, one
+        <strong>vehicle</strong> at a time, a <a href={withBase('/campaign/')}>campaign</a>,
+        the <a href={withBase('/qc/')}>quality</a> digest, and
+        <a href={withBase('/about/')}>about</a>.
+      </p>
+      <p class="muted">
+        A vehicle is opened as
+        <code>/usv/vehicle/?dataset=&lt;id&gt;</code> rather than as a path —
+        153 records and more every season is a query string, not 153 pages.
+      </p>
+    </div>
+  </div>
+</BaseLayout>
+
+<script>
+  import { withBase } from '../lib/url.ts';
+
+  /* `/usv/vehicle/sd1030_hurricane_2026` is the URL a reader guesses and the
+     one another site links. Forwarded rather than explained: an id in the
+     path is unambiguous, and being right about what someone meant is better
+     than being right about what they typed. `replace`, so the dead URL does
+     not sit in the history behind the working one. */
+  const path = window.location.pathname;
+  const guessed = /\/vehicle\/([^/]+)\/?$/.exec(path)
+    ?? /\/dataset\/([^/]+)\/?$/.exec(path);
+  if (guessed) {
+    window.location.replace(
+      `${withBase('/vehicle/')}?dataset=${encodeURIComponent(guessed[1])}`);
+  } else {
+    const campaign = /\/campaign\/([^/]+)\/?$/.exec(path);
+    if (campaign) {
+      window.location.replace(
+        `${withBase('/campaign/')}?id=${encodeURIComponent(campaign[1])}`);
+    } else {
+      const message = document.querySelector('[data-message]');
+      if (message) message.textContent = `There is no page at ${path}.`;
+    }
+  }
+</script>
