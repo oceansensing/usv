@@ -1,0 +1,512 @@
+---
+/**
+ * The fleet: every USV record PMEL publishes, on one map and in one table.
+ *
+ * Everything is drawn from `public/data/catalog.json`, which the build wrote
+ * — one request, and no ERDDAP involved. The tracks come from the individual
+ * series files, fetched only for what is on screen and capped.
+ */
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { SEVERITIES, VENDORS } from '../config';
+import { withBase } from '../lib/url';
+---
+
+<BaseLayout wide title="Fleet">
+  <div class="container wide">
+    <div class="topline">
+      <h1 class="figure-title">Uncrewed surface vehicles</h1>
+      <p class="eyebrow" data-counts>loading the catalog…</p>
+    </div>
+
+    <p class="lede">
+      Every Saildrone, Oshen and Chance Maritime record published on the
+      <a href="https://data.pmel.noaa.gov/pmel/erddap/info/index.html">NOAA PMEL
+      ERDDAP</a>. Click a track to open that vehicle.
+    </p>
+
+    <div class="figure-full">
+      <div class="map" data-map></div>
+      <div class="mapfoot">
+        <p class="muted mono" data-mapstatus></p>
+        <ul class="key">
+          {VENDORS.map((v) => (
+            <li><span class="swatch" style={`background:${v.color}`}></span>{v.label}</li>
+          ))}
+          <li><span class="dot live"></span>reporting now</li>
+          <li><span class="dot"></span>last known position</li>
+        </ul>
+      </div>
+    </div>
+
+    <form class="filters" data-filters onsubmit="return false">
+      <label class="field grow">
+        <span>Search</span>
+        <input type="search" name="text" placeholder="vehicle, campaign, institution, id" />
+      </label>
+      <label class="field">
+        <span>Campaign</span>
+        <select name="campaign"><option value="">all</option></select>
+      </label>
+      <label class="field">
+        <span>Year</span>
+        <select name="year"><option value="">all</option></select>
+      </label>
+      <label class="field">
+        <span>Quality</span>
+        <select name="severity">
+          <option value="">any</option>
+          {SEVERITIES.map((s) => <option value={s.key}>{s.short} — {s.label}</option>)}
+        </select>
+      </label>
+      <fieldset class="vendors">
+        <legend>Vendor</legend>
+        {VENDORS.map((v) => (
+          <label class="check">
+            <input type="checkbox" name="vendor" value={v.key} />
+            <span>{v.label}</span>
+          </label>
+        ))}
+      </fieldset>
+      <label class="check standalone">
+        <input type="checkbox" name="activeOnly" />
+        <span>Reporting now</span>
+      </label>
+      <button type="button" class="btn" data-reset>Reset</button>
+    </form>
+
+    <div class="tablewrap">
+      <table data-table>
+        <thead>
+          <tr>
+            <th data-sort="vehicle">Vehicle</th>
+            <th data-sort="campaignLabel">Campaign</th>
+            <th data-sort="start">Start</th>
+            <th data-sort="end">Last report</th>
+            <th data-sort="span" class="num">Days</th>
+            <th data-sort="quantities" class="num">Variables</th>
+            <th data-sort="severity">Quality</th>
+          </tr>
+        </thead>
+        <tbody data-rows></tbody>
+      </table>
+      <p class="muted" data-more></p>
+    </div>
+
+    <details class="aside">
+      <summary class="eyebrow">Where this comes from</summary>
+      <div class="prose">
+        <p>
+          The observations are NOAA's, published on the PMEL ERDDAP by PMEL,
+          AOML and NEFSC with Saildrone Inc., Oshen and Chance Maritime
+          Technologies. Each record links to its own ERDDAP page, which carries
+          the licence and the acknowledgement that govern it.
+        </p>
+        <p>
+          <strong>This site is not live.</strong> PMEL sends no
+          cross-origin header, so a page in your browser cannot read it at all;
+          the data here was fetched when the site was built. Every page prints
+          the time it was fetched.
+        </p>
+        <p>
+          <strong>The archive publishes no quality flags</strong> on the 2026
+          fleet, on any Oshen or on any Chance record, so every quality
+          statement here was computed by this site and is described on the
+          <a href={withBase("/qc/")}>quality page</a>.
+        </p>
+      </div>
+    </details>
+  </div>
+</BaseLayout>
+
+<script>
+  import {
+    emptyFilters, makeFleetMap, matches, yearsOf,
+  } from '../lib/fleet.ts';
+  import {
+    duration, isActive, isoDay, loadCatalog, since, type CatalogEntry,
+  } from '../lib/data.ts';
+  import { withBase } from '../lib/url.ts';
+
+  /** How many rows the table draws before the rest are counted. A table of
+      153 is fine; the count is there because the filter can widen. */
+  const PAGE = 200;
+
+  const form = document.querySelector('[data-filters]') as HTMLFormElement;
+  const rowsEl = document.querySelector('[data-rows]') as HTMLElement;
+  const moreEl = document.querySelector('[data-more]') as HTMLElement;
+  const countsEl = document.querySelector('[data-counts]') as HTMLElement;
+  const mapEl = document.querySelector('[data-map]') as HTMLElement;
+  const statusEl = document.querySelector('[data-mapstatus]') as HTMLElement;
+
+  const fleet = makeFleetMap(mapEl, statusEl);
+  fleet.onPick((id) => {
+    window.location.href = `${withBase('/vehicle/')}?dataset=${encodeURIComponent(id)}`;
+  });
+
+  const filters = emptyFilters();
+  let sortKey = 'end';
+  let sortDown = true;
+  let all: CatalogEntry[] = [];
+  let fetched = 0;
+
+  const catalog = await loadCatalog();
+  all = catalog.datasets.filter((d) => d.kind !== 'files');
+  fetched = catalog.seriesBuilt ?? catalog.fetched;
+
+  /* The menus are filled from the catalog rather than hard-coded, so a
+     campaign that appears next season appears here with no edit. */
+  fill('campaign', catalog.campaigns.map((c) => [c.slug, c.label]));
+  const years = new Set<string>();
+  for (const d of all) for (const y of yearsOf(d)) years.add(y);
+  fill('year', [...years].sort().reverse().map((y) => [y, y]));
+
+  function fill(name: string, options: Array<[string, string]>) {
+    const select = form.elements.namedItem(name) as HTMLSelectElement;
+    for (const [value, label] of options) {
+      const option = document.createElement('option');
+      option.value = value;
+      option.textContent = label;
+      select.append(option);
+    }
+  }
+
+  form.addEventListener('input', read);
+  document.querySelector('[data-reset]')!.addEventListener('click', () => {
+    form.reset();
+    read();
+  });
+  for (const th of document.querySelectorAll<HTMLElement>('[data-sort]')) {
+    th.addEventListener('click', () => {
+      const key = th.dataset.sort!;
+      if (key === sortKey) sortDown = !sortDown;
+      else { sortKey = key; sortDown = true; }
+      render();
+    });
+  }
+
+  function read() {
+    const data = new FormData(form);
+    filters.text = String(data.get('text') ?? '');
+    filters.campaign = String(data.get('campaign') ?? '');
+    filters.year = String(data.get('year') ?? '');
+    filters.severity = String(data.get('severity') ?? '');
+    filters.activeOnly = data.get('activeOnly') !== null;
+    filters.vendors = new Set(data.getAll('vendor').map(String));
+    render();
+  }
+
+  function render() {
+    const now = Date.now() / 1000;
+    const shown = all.filter((d) => matches(d, filters, now));
+    shown.sort(compare);
+
+    const active = shown.filter((d) => isActive(d, now)).length;
+    countsEl.textContent = `${shown.length} of ${all.length} records · `
+      + `${active} reporting · fetched ${since(fetched, now)}`;
+
+    rowsEl.replaceChildren(...shown.slice(0, PAGE).map((d) => row(d, now)));
+    moreEl.textContent = shown.length > PAGE
+      ? `${shown.length - PAGE} more match and are not listed.` : '';
+
+    void fleet.show(shown);
+  }
+
+  function compare(a: CatalogEntry, b: CatalogEntry): number {
+    const dir = sortDown ? -1 : 1;
+    const value = (d: CatalogEntry): string | number => {
+      if (sortKey === 'span') return (d.end - d.start) || 0;
+      if (sortKey === 'quantities') return d.quantities.length;
+      /* Worst first when sorting by quality, and a record with nothing found
+         sorts last rather than first — "no findings" is an answer, not the
+         top of a ranking. */
+      if (sortKey === 'severity') {
+        return { high: 4, medium: 3, low: 2, note: 1 }[d.severity ?? ''] ?? 0;
+      }
+      return (d as unknown as Record<string, string | number>)[sortKey] ?? '';
+    };
+    const x = value(a);
+    const y = value(b);
+    if (typeof x === 'number' && typeof y === 'number') return (x - y) * dir;
+    return String(x).localeCompare(String(y)) * dir;
+  }
+
+  function row(d: CatalogEntry, now: number): HTMLElement {
+    const tr = document.createElement('tr');
+    const live = isActive(d, now);
+
+    const name = document.createElement('td');
+    const link = document.createElement('a');
+    link.href = `${withBase('/vehicle/')}?dataset=${encodeURIComponent(d.id)}`;
+    link.textContent = d.vehicle || d.id;
+    name.append(link);
+    const sub = document.createElement('span');
+    sub.className = 'sub mono';
+    sub.textContent = d.id;
+    name.append(sub);
+    tr.append(name);
+
+    const campaign = document.createElement('td');
+    const clink = document.createElement('a');
+    clink.href = `${withBase('/campaign/')}?id=${encodeURIComponent(d.campaign)}`;
+    clink.textContent = d.campaignLabel;
+    campaign.append(clink);
+    tr.append(campaign);
+
+    tr.append(cell(isoDay(d.start), 'mono'));
+
+    const end = document.createElement('td');
+    end.className = 'mono';
+    end.textContent = isoDay(d.end);
+    if (live) {
+      const tag = document.createElement('span');
+      tag.className = 'live';
+      tag.textContent = 'live';
+      end.append(' ', tag);
+    }
+    tr.append(end);
+
+    tr.append(cell(
+      Number.isFinite(d.end - d.start) ? String(Math.round((d.end - d.start) / 86400)) : '—',
+      'num mono',
+    ));
+    tr.append(cell(String(d.quantities.length), 'num mono'));
+
+    const quality = document.createElement('td');
+    if (d.rows === undefined) {
+      /* A record whose series did not build has no findings *and* no
+         statement that there are none. Those are different and the table
+         says which. */
+      quality.append(tag('not built', 'none'));
+    } else if (!d.severity) {
+      quality.append(tag('clean', 'clean'));
+    } else {
+      quality.append(tag(`${d.severity} · ${d.findings}`, d.severity));
+    }
+    tr.append(quality);
+
+    /* The whole row is clickable, and it is still an anchor above so that
+       middle-click, keyboard and "copy link" all work. A row that is only a
+       click handler is a row a screen reader cannot open. */
+    tr.addEventListener('click', (event) => {
+      if ((event.target as HTMLElement).closest('a')) return;
+      window.location.href = link.href;
+    });
+    return tr;
+  }
+
+  function cell(text: string, className = ''): HTMLElement {
+    const td = document.createElement('td');
+    td.className = className;
+    td.textContent = text;
+    return td;
+  }
+
+  function tag(text: string, kind: string): HTMLElement {
+    const span = document.createElement('span');
+    span.className = `tag ${kind}`;
+    span.textContent = text;
+    return span;
+  }
+
+  read();
+</script>
+
+<style is:global>
+  /* **The hit line, and the two rules that make it work.**
+     SVG's default `pointer-events: visiblePainted` makes an element a target
+     only where it is *painted*, and `opacity: 0` paints nothing — so the fat
+     transparent line beneath each track swallowed exactly zero clicks and
+     looked like a hit-testing problem with thin strokes. `stroke` means the
+     stroke area whatever the paint. The selector has to out-specify
+     Leaflet's own `.leaflet-interactive { pointer-events: auto }`, which is
+     imported after this and wins at equal specificity — hence the element
+     name. */
+  path.track-hit {
+    pointer-events: stroke;
+    cursor: pointer;
+  }
+</style>
+
+<style>
+  .lede {
+    max-width: var(--prose-width);
+    color: var(--text-muted);
+    margin-block: 0 var(--space-md);
+  }
+
+  .map {
+    height: clamp(20rem, 52vh, 34rem);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg-subtle);
+  }
+
+  .mapfoot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--space-xs) var(--space-md);
+    margin-block: var(--space-2xs) var(--space-lg);
+    font-size: var(--text-sm);
+  }
+
+  .key {
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+    padding: 0;
+    margin: 0 0 0 auto;
+    color: var(--text-muted);
+  }
+
+  .key li {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2xs);
+  }
+
+  .swatch {
+    width: 1.5rem;
+    height: 3px;
+    border-radius: 2px;
+  }
+
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    border: 1px solid var(--text-muted);
+  }
+
+  .dot.live {
+    background: var(--text-muted);
+  }
+
+  .filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: end;
+    gap: var(--space-sm);
+    margin-block-end: var(--space-md);
+  }
+
+  .field.grow {
+    flex: 1 1 18rem;
+  }
+
+  .vendors {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: var(--space-2xs) var(--space-xs) var(--space-xs);
+    display: flex;
+    gap: var(--space-sm);
+    margin: 0;
+  }
+
+  .vendors legend {
+    font-size: var(--text-sm);
+    color: var(--text-muted);
+    padding-inline: var(--space-2xs);
+  }
+
+  .check {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2xs);
+    font-size: var(--text-sm);
+    white-space: nowrap;
+  }
+
+  /* A checkbox standing on its own has no fieldset to give it height, so it
+     is aligned to the controls beside it rather than to the text baseline. */
+  .check.standalone {
+    padding-block-end: 0.6rem;
+  }
+
+  .tablewrap {
+    /* Wide content scrolls inside its own box; the page body must never
+       scroll horizontally. */
+    overflow-x: auto;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--text-sm);
+  }
+
+  th {
+    text-align: start;
+    font-weight: 600;
+    border-block-end: 1px solid var(--border-strong);
+    padding: var(--space-2xs) var(--space-xs);
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  th:hover {
+    color: var(--accent);
+  }
+
+  td {
+    border-block-end: 1px solid var(--border);
+    padding: var(--space-2xs) var(--space-xs);
+    vertical-align: baseline;
+  }
+
+  .num {
+    text-align: end;
+    font-variant-numeric: tabular-nums;
+  }
+
+  tbody tr {
+    cursor: pointer;
+  }
+
+  tbody tr:hover {
+    background: var(--bg-subtle);
+  }
+
+  .sub {
+    display: block;
+    font-size: 0.78em;
+    color: var(--text-muted);
+  }
+
+  .tag {
+    display: inline-block;
+    padding: 0.05em 0.5em;
+    border-radius: 999px;
+    font-size: 0.8em;
+    font-family: var(--font-mono);
+    border: 1px solid var(--border-strong);
+    white-space: nowrap;
+  }
+
+  /* Severity is carried by a word as well as a colour — a badge that means
+     something only in colour means nothing to a reader who cannot see the
+     difference, and nothing at all in a printed figure. */
+  .tag.high { border-color: #b3261e; color: #b3261e; }
+  .tag.medium { border-color: #a15c00; color: #a15c00; }
+  .tag.low { color: var(--text-muted); }
+  .tag.note { color: var(--text-muted); border-style: dashed; }
+  .tag.clean { border-color: #1c6b3c; color: #1c6b3c; }
+  .tag.none { color: var(--text-muted); border-style: dotted; }
+
+  :root[data-theme='dark'] .tag.high,
+  :root[data-theme='dark'] .tag.medium,
+  :root[data-theme='dark'] .tag.clean { filter: brightness(1.6); }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) .tag.high,
+    :root:not([data-theme='light']) .tag.medium,
+    :root:not([data-theme='light']) .tag.clean { filter: brightness(1.6); }
+  }
+
+  .live {
+    font-family: var(--font-mono);
+    font-size: 0.78em;
+    color: #1c6b3c;
+  }
+</style>

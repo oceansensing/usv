@@ -1,0 +1,256 @@
+---
+/**
+ * One deployment, driven entirely by the query string.
+ *
+ * There is no route per dataset: 153 records and more every season is a
+ * query string, not 153 pages. Reader state — the dataset, the variables on
+ * screen, the track's colour and scale — lives in the URL, so a view is a
+ * link.
+ */
+import BaseLayout from '../layouts/BaseLayout.astro';
+import PlotFigure from '../components/PlotFigure.astro';
+import TrackFigure from '../components/TrackFigure.astro';
+import { withBase } from '../lib/url';
+---
+
+<BaseLayout wide title="Vehicle">
+  <div class="container wide">
+    <div class="topline">
+      <h1 class="figure-title" data-title>Loading…</h1>
+      <a class="eyebrow" href={withBase('/')}>← all vehicles</a>
+    </div>
+    <p class="subtitle" data-subtitle></p>
+
+    <p class="error" data-error hidden></p>
+
+    <div class="figure-full split">
+      <TrackFigure />
+      <section class="facts">
+        <h2 class="eyebrow">The record</h2>
+        <dl data-facts></dl>
+        <div class="provenance" data-provenance></div>
+      </section>
+    </div>
+
+    <section class="stackwrap">
+      <div class="topline">
+        <h2 class="figure-title">Time series</h2>
+      </div>
+      <p class="muted">
+        One shared time axis, so a pressure fall and a wind rise line up.
+        Drag across any panel to read a stretch of it.
+      </p>
+      <div class="chips" data-chips></div>
+      <div class="stack" data-stack></div>
+
+      <!--
+        The prototype the stack is cloned from — a real rendered instance
+        rather than a `<template>`, because Astro stamps its scoping
+        attribute onto what it renders and `cloneNode` copies attributes. A
+        clone taken from a template carries none and loses every scoped rule.
+      -->
+      <div data-proto hidden>
+        <PlotFigure id="prototype" title="" />
+      </div>
+    </section>
+
+    <section>
+      <div class="topline">
+        <h2 class="figure-title">Any variable against any other</h2>
+      </div>
+      <p class="muted">
+        Temperature against salinity is the surface water mass; wind against
+        pressure is a storm. Colour is a third variable.
+      </p>
+      <div data-scatter>
+        <PlotFigure id="scatter" title="Property–property" />
+      </div>
+    </section>
+
+    <section class="qcwrap">
+      <div class="topline">
+        <h2 class="figure-title">What is wrong with this record</h2>
+      </div>
+      <p class="muted qcnote" data-qcnote></p>
+      <p class="muted">
+        The PMEL archive publishes no quality flags for this record, so every
+        statement here was computed by this site when it was built. <strong>A
+        finding marks the data and never alters it</strong> — everything found
+        below is still drawn above, exactly as published.
+        <a href={withBase('/qc/')}>What the checks do</a>.
+      </p>
+      <div data-qc></div>
+    </section>
+  </div>
+</BaseLayout>
+
+<script>
+  import { makeVehiclePage } from '../lib/vehicle-page.ts';
+  import { withBase } from '../lib/url.ts';
+
+  const id = new URL(window.location.href).searchParams.get('dataset');
+  if (!id) {
+    window.location.replace(withBase('/'));
+  } else {
+    await makeVehiclePage(document).load(id);
+  }
+</script>
+
+<style>
+  .subtitle {
+    color: var(--text-muted);
+    margin-block: 0 var(--space-md);
+    max-width: var(--prose-width);
+  }
+
+  .error {
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius);
+    padding: var(--space-sm);
+    background: var(--bg-subtle);
+  }
+
+  /* The map and the facts read as one strip: what the record is, beside
+     where it went. Below 60rem they stack, map first — the map is the thing
+     a reader came to see. */
+  .split {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(16rem, 1fr);
+    gap: var(--space-lg);
+    align-items: start;
+  }
+
+  @media (max-width: 60rem) {
+    .split { grid-template-columns: 1fr; }
+  }
+
+  .facts dl {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: var(--space-2xs) var(--space-sm);
+    margin: var(--space-xs) 0 var(--space-md);
+    font-size: var(--text-sm);
+  }
+
+  .facts dt {
+    color: var(--text-muted);
+    white-space: nowrap;
+  }
+
+  .facts dd {
+    margin: 0;
+  }
+
+  .provenance {
+    font-size: var(--text-sm);
+    border-block-start: 1px solid var(--border);
+    padding-block-start: var(--space-xs);
+  }
+
+  .provenance p { margin-block: 0 var(--space-xs); }
+
+  .stackwrap { margin-block-start: var(--space-xl); }
+
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2xs);
+    margin-block: var(--space-sm);
+  }
+
+  .chipnote {
+    font-size: var(--text-sm);
+    margin-inline-start: var(--space-xs);
+  }
+
+  .stack {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+  }
+
+  .qcwrap { margin-block-start: var(--space-xl); }
+
+  .qcnote {
+    font-style: italic;
+  }
+</style>
+
+<!--
+  Anchored on data attributes rather than scoped, because the stack's figures
+  and every finding are built as DOM at runtime. A scoped rule would match
+  nothing on them.
+-->
+<style is:global>
+  .chip {
+    font: inherit;
+    font-size: var(--text-sm);
+    padding: 0.15em 0.7em;
+    border: 1px solid var(--border-strong);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--text);
+    cursor: pointer;
+  }
+
+  .chip:hover { border-color: var(--accent); color: var(--accent); }
+
+  .chip[aria-pressed='true'] {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--accent-contrast);
+  }
+
+  /* A derived quantity is marked, because "Absolute Salinity" beside
+     "Practical salinity" gives no clue that one was computed here from the
+     other and the second is what the instrument reported. */
+  .chip[data-derived]::before {
+    content: 'ƒ ';
+    opacity: 0.7;
+  }
+
+  [data-qc] .sev { margin-block: var(--space-md) var(--space-2xs); }
+
+  .findings {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    gap: var(--space-xs);
+  }
+
+  .finding {
+    border-inline-start: 3px solid var(--border-strong);
+    padding: var(--space-2xs) 0 var(--space-2xs) var(--space-sm);
+    max-width: var(--prose-width);
+  }
+
+  .finding.high { border-color: #b3261e; }
+  .finding.medium { border-color: #a15c00; }
+  .finding.low { border-color: var(--border-strong); }
+  .finding.note { border-color: var(--border); border-inline-start-style: dashed; }
+
+  .finding .summary { margin: 0; }
+  .finding .when { margin: 0.1em 0 0; font-size: 0.8em; }
+  .finding .detail { margin: 0.25em 0 0; font-size: var(--text-sm); }
+
+  .finding .check {
+    font-size: 0.78em;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+  }
+
+  .btn.small {
+    font-size: var(--text-sm);
+    padding: 0.1em 0.6em;
+    margin-block-start: var(--space-2xs);
+  }
+
+  [data-qc] .clean {
+    border-inline-start: 3px solid #1c6b3c;
+    padding-inline-start: var(--space-sm);
+    max-width: var(--prose-width);
+  }
+</style>
