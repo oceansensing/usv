@@ -202,7 +202,35 @@ const bytes = fs.readdirSync(OUT_DIR)
   .reduce((sum, f) => sum + fs.statSync(`${OUT_DIR}/${f}`).size, 0);
 console.log(`\n${built}/${targets.length} built, ${human(bytes)} in public/data/series/`);
 console.log(`${((Date.now() - started) / 1000 / 60).toFixed(1)} min`);
-if (built < targets.length) process.exitCode = 1;
+
+/**
+ * **A record the archive will not give up must not block the deploy.**
+ *
+ * The first CI run fetched 152 of 153 in 37.9 minutes — every byte of it
+ * correct — and then this script exited 1 because one record was missing,
+ * which failed the build, skipped the upload, and left the site unpublished.
+ * It also threw the 38 minutes away: `actions/cache` saves under
+ * `post-if: success()`, so a failed job keeps nothing.
+ *
+ * A site with 99 % of the archive is better than no site. A site with half
+ * of it is worse than the one already published, because it would silently
+ * replace it. So the gate is a *fraction*, and the two ends are named: any
+ * failure is reported, a large share of them stops the deploy.
+ */
+const missing = targets.length - built;
+const TOLERATED = 0.05;
+if (built === 0) {
+  console.log('\nNothing was built. Not deploying this.');
+  process.exitCode = 1;
+} else if (missing / targets.length > TOLERATED) {
+  console.log(`\n${missing} of ${targets.length} records could not be fetched, `
+    + `past the ${TOLERATED * 100} % this tolerates. Not deploying this.`);
+  process.exitCode = 1;
+} else if (missing) {
+  console.log(`\n${missing} record${missing === 1 ? '' : 's'} could not be fetched. `
+    + 'The site is built from the rest, and each missing one says so on its own '
+    + 'page and links to the ERDDAP.');
+}
 
 /* ------------------------------------------------------------ one record -- */
 

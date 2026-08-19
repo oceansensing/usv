@@ -151,7 +151,14 @@ console.log(`  ${human(bytes)} → public/data/catalog.json`
   + `${dropped ? `, ${dropped} stale cache entries dropped` : ''}`);
 console.log(`  ${((Date.now() - started) / 1000).toFixed(1)} s`);
 
-if (found.length < datasets.length) {
-  console.log(`\n  ${datasets.length - found.length} datasets could not be read.`);
-  process.exitCode = 1;
+/* Same rule as `build-series.mjs`: a metadata document the server will not
+   serve costs one record, not the deploy. Losing many of them means
+   something systemic and the published site should stay up instead. */
+const lost = datasets.length - found.length;
+if (lost) {
+  console.log(`\n  ${lost} dataset${lost === 1 ? '' : 's'} could not be read.`);
+  if (lost / datasets.length > 0.05) {
+    console.log('  That is past what this tolerates. Not deploying this.');
+    process.exitCode = 1;
+  }
 }
