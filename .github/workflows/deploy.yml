@@ -24,9 +24,15 @@ on:
 # sitting in its environment.
 #
 # Actions are pinned to commit SHAs with the tag they came from beside them.
-# A tag is mutable — whoever controls that repository can move `v4` onto any
+# A tag is mutable — whoever controls that repository can move `v7` onto any
 # commit, and every workflow naming it runs the new code on the next push
 # with nothing to review.
+#
+# The comment is the part that rots: a SHA cannot tell you it is three major
+# versions behind, and the runner will not either until the Node it targets
+# is withdrawn. The first run of this workflow warned that checkout@v4 and
+# setup-node@v4 target Node 20 and were being forced onto Node 24; these are
+# the current majors, resolved from each release's tag on 2026-08-19.
 permissions:
   contents: read
 
@@ -46,8 +52,8 @@ jobs:
       cancel-in-progress: true
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 22
           cache: npm
@@ -67,8 +73,8 @@ jobs:
     # the active missions move. This is that plus room.
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 22
           cache: npm
@@ -84,7 +90,7 @@ jobs:
       # the run number so every run writes a *new* entry (GitHub's cache is
       # immutable once written), and the prefix match restores the most
       # recent previous one.
-      - uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: .cache
           key: erddap-${{ github.run_id }}
@@ -95,7 +101,7 @@ jobs:
       - run: npm run data
       - run: npm run build
 
-      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5
         with:
           path: dist
 
@@ -115,4 +121,4 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
-        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4
+        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5
