@@ -240,14 +240,22 @@ export function parseCatalog(
     const start = r.minTime ? parseIsoTime(r.minTime) : NaN;
     const end = r.maxTime ? parseIsoTime(r.maxTime) : NaN;
     const campaign = campaignOf(r.datasetID, r.title, start);
+    const kind = kindOf(r.datasetID, r.title, r.cdm_data_type, r.class);
+    const vehicle = vehicleOf(r.datasetID, r.title);
 
     out.push({
       id: r.datasetID,
       title: r.title,
       institution: r.institution,
       vendor,
-      kind: kindOf(r.datasetID, r.title, r.cdm_data_type, r.class),
-      vehicle: vehicleOf(r.datasetID, r.title),
+      kind,
+      vehicle,
+      /* A record that names no vehicle carries more than one. The named
+         collections (`all_swfsc_2023`, `fisheries_2020_all`) are the obvious
+         cases; `saildrone_arctic_2018` is the one that matters, because its
+         name gives nothing away and it is the only record of the 2018 Arctic
+         met and ocean data. */
+      multiVehicle: kind !== 'files' && vehicle === '',
       campaign: campaign.slug,
       campaignLabel: campaign.label,
       start,

@@ -31,7 +31,18 @@ import { withBase } from '../lib/url';
     -->
     <div data-content>
     <div class="figure-full split">
-      <TrackFigure />
+      <div data-track-wrap>
+        <TrackFigure />
+      </div>
+      <div class="no-track" data-no-track hidden>
+        <h2 class="figure-title">No track</h2>
+        <p class="muted">
+          This record carries several vehicles interleaved, so a line through
+          consecutive rows is a path none of them sailed — the fleet map shows
+          the area they worked instead. The measurements below are exactly as
+          published; only the route would have been invented.
+        </p>
+      </div>
       <section class="facts">
         <h2 class="eyebrow">The record</h2>
         <dl data-facts></dl>
@@ -179,6 +190,17 @@ import { withBase } from '../lib/url';
     display: grid;
     gap: 0.15rem;
   }
+
+  .no-track[hidden] { display: none; }
+
+  .no-track {
+    display: block;
+    border: 1px dashed var(--border-strong);
+    border-radius: var(--radius);
+    padding: var(--space-md);
+  }
+
+  .no-track p { max-width: var(--prose-width); margin-block-end: 0; }
 
   .stackwrap { margin-block-start: var(--space-xl); }
 

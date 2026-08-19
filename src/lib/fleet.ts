@@ -229,6 +229,27 @@ export function makeFleetMap(
         ? options.colour(d, index, total)
         : VENDOR_COLOR[d.vendor] ?? '#888';
 
+      const label = `${d.vehicle || d.id} · ${d.campaignLabel}`
+        + `\n${isoDay(d.start)} → ${isoDay(d.end)} (${duration(d.end - d.start)})`;
+
+      /* **A multi-vehicle record gets its extent, not a path.** Three
+         Saildrones surveying one box report in turn, so a line through
+         consecutive rows is a scribble none of them sailed. The area they
+         worked is true and is what is drawn; the route is not. */
+      if (d.multiVehicle) {
+        const box = L.polygon([
+          [d.south, d.west], [d.south, d.east], [d.north, d.east], [d.north, d.west],
+        ], {
+          color: colour, weight: 1.5, opacity: 0.7, fillOpacity: 0.05, dashArray: '4 4',
+          className: 'track-hit',
+        }).addTo(lines);
+        box.bindTooltip(`${label}\nseveral vehicles — the area they worked, not a track`,
+          { sticky: true });
+        box.on('click', () => pick?.(d.id));
+        bounds.extend(box.getBounds());
+        return;
+      }
+
       /* **Two rules stand between an invisible hit line and a clickable
          one.** A 2 px stroke is very hard to hit and a diagonal one is
          worse, so each track carries a fat transparent line beneath it —
@@ -243,8 +264,6 @@ export function makeFleetMap(
       }).addTo(lines);
       L.polyline(points, { color: colour, weight: 2, opacity: 0.85 }).addTo(lines);
 
-      const label = `${d.vehicle || d.id} · ${d.campaignLabel}`
-        + `\n${isoDay(d.start)} → ${isoDay(d.end)} (${duration(d.end - d.start)})`;
       hit.bindTooltip(label, { sticky: true });
       hit.on('click', () => pick?.(d.id));
 

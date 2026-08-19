@@ -28,8 +28,24 @@ export interface DatasetSummary {
   institution: string;
   vendor: Vendor;
   kind: Kind;
-  /** The vehicle's own identifier — `SD-1030`, `PD11`, `MC29`. */
+  /** The vehicle's own identifier — `SD-1030`, `PD11`, `MC29`. Empty when
+      the record carries more than one. */
   vehicle: string;
+  /**
+   * True for a record whose rows come from several vehicles interleaved.
+   *
+   * **Its track is not a track.** Three Saildrones surveying one area report
+   * in turn, so consecutive rows step between vehicles a few kilometres
+   * apart and the path drawn through them is a scribble no vehicle sailed.
+   * The measurements are real and are still drawn; the map is not.
+   *
+   * Detected as "a record that names no vehicle", because a per-vehicle
+   * dataset always names its own — `sd1030_hurricane_2026` in the id,
+   * `Saildrone 1030` in the title. A speed test does not work: the vehicles
+   * are in the same survey box, so the implied speed between interleaved
+   * fixes stays under what any of them could actually do.
+   */
+  multiVehicle: boolean;
   /** The mission this belongs to, as a slug: `hurricane-2026`, `tpos-2021`. */
   campaign: string;
   /** The campaign written for a person to read. */

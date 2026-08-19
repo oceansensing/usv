@@ -38,6 +38,9 @@ export interface CatalogEntry {
   vendor: 'saildrone' | 'oshen' | 'chance';
   kind: 'trajectory' | 'collection' | 'derived' | 'files';
   vehicle: string;
+  /** True where the record's rows come from several vehicles interleaved, so
+      its track is a scribble no vehicle sailed. See `DatasetSummary`. */
+  multiVehicle: boolean;
   campaign: string;
   campaignLabel: string;
   variant: string;
@@ -99,6 +102,9 @@ export interface SeriesDoc {
   title: string;
   vendor: string;
   vehicle: string;
+  /** Written by builds from 2026-08-19 on. Older series files predate it, so
+      the vehicle page takes the catalog's value, which is always current. */
+  multiVehicle?: boolean;
   campaign: string;
   campaignLabel: string;
   institution: string;

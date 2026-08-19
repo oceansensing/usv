@@ -131,6 +131,25 @@ section('the catalog');
   const plottable = all.filter((d) => d.kind !== 'files');
   ok('what is left is the plottable archive', plottable.length > 140,
     `${plottable.length} records`);
+
+  /* **A record that names no vehicle carries more than one**, and its track
+     is not a track: three Saildrones surveying one box report in turn, so
+     the path drawn through consecutive rows is a scribble no vehicle sailed.
+     A speed test does not find them — the implied speed between interleaved
+     fixes stays under what any of them could do — but the name does. */
+  const multi = all.filter((d) => d.multiVehicle);
+  ok('the multi-vehicle records are found', multi.length >= 10,
+    multi.map((d) => d.id).join(', '));
+  ok('and the named collections are among them',
+    multi.some((d) => d.id === 'all_swfsc_2023')
+    && multi.some((d) => d.id === 'fisheries_2020_all'));
+  /* The one the name gives nothing away about, and the only record of the
+     2018 Arctic met and ocean data. */
+  ok('as is saildrone_arctic_2018, which no name rule would have caught',
+    multi.some((d) => d.id === 'saildrone_arctic_2018'));
+  ok('while every single-vehicle record is not',
+    !all.find((d) => d.id === 'sd1030_hurricane_2026')?.multiVehicle
+    && !all.find((d) => d.id === 'oshenPD11_hurricane_2026')?.multiVehicle);
 }
 
 /* ------------------------------------------------------------------------ */

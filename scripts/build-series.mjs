@@ -172,8 +172,18 @@ const summaries = await pool(targets, 1, async (d, index) => {
 
 /* --------------------------------------------------- merge into catalog -- */
 
+/* **Re-read the catalog before merging, rather than using the copy this run
+   started with.** A full build takes forty minutes, and `build-catalog.mjs`
+   can be re-run in that time — as it was, the first time this was written,
+   whereupon the finished series build wrote its stale in-memory copy back
+   over the fresh one and every field the catalog had gained went away
+   again. */
+const merged = fs.existsSync(CATALOG)
+  ? JSON.parse(fs.readFileSync(CATALOG, 'utf8'))
+  : catalog;
+
 const byId = new Map(summaries.filter(Boolean).map((s) => [s.id, s]));
-for (const d of catalog.datasets) {
+for (const d of merged.datasets) {
   const s = byId.get(d.id);
   if (!s) continue;
   d.rows = s.rows;
@@ -184,8 +194,8 @@ for (const d of catalog.datasets) {
   d.checks = s.checks;
   d.seriesFetched = s.fetched;
 }
-catalog.seriesBuilt = Math.floor(started / 1000);
-writeJson(CATALOG, catalog);
+merged.seriesBuilt = Math.floor(started / 1000);
+writeJson(CATALOG, merged);
 
 const built = summaries.filter(Boolean).length;
 const bytes = fs.readdirSync(OUT_DIR)
@@ -348,6 +358,7 @@ async function buildOne(d) {
     title: d.title,
     vendor: d.vendor,
     vehicle: d.vehicle,
+    multiVehicle: d.multiVehicle,
     campaign: d.campaign,
     campaignLabel: d.campaignLabel,
     institution: d.institution,

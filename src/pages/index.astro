@@ -296,7 +296,10 @@ import { withBase } from '../lib/url';
     name.append(link);
     const sub = document.createElement('span');
     sub.className = 'sub mono';
-    sub.textContent = d.id;
+    /* A record carrying several vehicles has no name of its own to show, so
+       the id is all there is — and saying why is more use than leaving a
+       reader to wonder which vehicle `saildrone_arctic_2018` is. */
+    sub.textContent = d.multiVehicle ? `${d.id} · several vehicles` : d.id;
     name.append(sub);
     tr.append(name);
 
@@ -332,6 +335,7 @@ import { withBase } from '../lib/url';
          statement that there are none. Those are different and the table
          says which. */
       quality.append(tag('not built', 'none'));
+      quality.title = 'The build has not written a series for this record yet.';
     } else if (!d.severity) {
       quality.append(tag('clean', 'clean'));
     } else {

@@ -64,8 +64,14 @@ export function makeVehiclePage(root: Document | HTMLElement): VehiclePage {
   const siblingsEl = at<HTMLElement>('[data-siblings]');
   const siblingsWrap = at<HTMLElement>('[data-siblings-wrap]');
   const contentEl = at<HTMLElement>('[data-content]');
+  const trackWrap = at<HTMLElement>('[data-track-wrap]');
+  const noTrackEl = at<HTMLElement>('[data-no-track]');
 
   let series: Series | null = null;
+  /** Taken from the catalog rather than the series file, because the catalog
+      is always current and a series written before this field existed does
+      not carry it. */
+  let multiVehicle = false;
   let variables: Plottable[] = [];
   let track: Track | null = null;
   let scatter: Figure | null = null;
@@ -127,18 +133,33 @@ export function makeVehiclePage(root: Document | HTMLElement): VehiclePage {
     drawQc();
     void drawSiblings(id, doc.vehicle);
 
-    /* The map is built once the container has a size. Leaflet measures at
-       construction, and this page is still assembling. */
-    if (!track) track = makeTrack(at<HTMLElement>('[data-map]'));
+    /* **A multi-vehicle record has no track.** Three Saildrones surveying
+       one box report in turn, so a line through consecutive rows is a
+       scribble none of them sailed. The measurements below are real and are
+       drawn; the map is replaced by a sentence saying why there is none. */
+    const entry = await catalogEntry(id);
+    multiVehicle = Boolean(entry?.multiVehicle ?? doc.multiVehicle);
+    if (multiVehicle) {
+      trackWrap.hidden = true;
+      noTrackEl.hidden = false;
+    } else {
+      trackWrap.hidden = false;
+      noTrackEl.hidden = true;
+      /* The map is built once the container has a size. Leaflet measures at
+         construction, and this page is still assembling. */
+      if (!track) track = makeTrack(at<HTMLElement>('[data-map]'));
+    }
 
     const url = new URL(window.location.href);
-    legend.restore({
-      variable: url.searchParams.get('track'),
-      colormap: url.searchParams.get('trackmap'),
-      range: url.searchParams.get('trackrange'),
-    });
-    legend.paint();
-    track.fit();
+    if (track) {
+      legend.restore({
+        variable: url.searchParams.get('track'),
+        colormap: url.searchParams.get('trackmap'),
+        range: url.searchParams.get('trackrange'),
+      });
+      legend.paint();
+      track.fit();
+    }
 
     chosen = (url.searchParams.get('vars')?.split(',').filter(Boolean).filter(has))
       ?? DEFAULT_STACK.filter(has).slice(0, MAX_STACK);
@@ -402,6 +423,16 @@ export function makeVehiclePage(root: Document | HTMLElement): VehiclePage {
    * data this archive otherwise has none of, and nothing else on the site
    * would tell them it exists.
    */
+  /** This record's own catalog row, or undefined if the catalog cannot be
+      read. Cheap: `loadCatalog` fetches once per page however many ask. */
+  async function catalogEntry(id: string): Promise<CatalogEntry | undefined> {
+    try {
+      return (await loadCatalog()).datasets.find((d) => d.id === id);
+    } catch {
+      return undefined;
+    }
+  }
+
   async function drawSiblings(id: string, vehicle: string): Promise<void> {
     if (!vehicle) { siblingsWrap.hidden = true; return; }
     let catalog;
