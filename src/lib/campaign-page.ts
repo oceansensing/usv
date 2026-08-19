@@ -22,7 +22,7 @@
  */
 
 import { makeFigure, type Figure, type Source } from './figure.ts';
-import { makeTrack, type Track } from './track.ts';
+import { makeFleetMap, type FleetMap } from './fleet.ts';
 import type { Plottable } from './variables.ts';
 import {
   duration, isActive, isoDay, loadCatalog, loadSeries,
@@ -61,7 +61,7 @@ export function makeCampaignPage(root: Document): { load(slug: string | null): P
   const statusEl = at<HTMLElement>('[data-status]');
   const pickEl = at<HTMLSelectElement>('[data-quantity]');
 
-  let track: Track | null = null;
+  let map: FleetMap | null = null;
   let figure: Figure | null = null;
   let loaded: Array<{ entry: CatalogEntry; series: Series }> = [];
 
@@ -104,23 +104,35 @@ export function makeCampaignPage(root: Document): { load(slug: string | null): P
     const chosen = members.slice(0, MAX_VEHICLES);
     statusEl.textContent = `loading ${chosen.length} vehicles…`;
 
-    if (!track) track = makeTrack(at<HTMLElement>('[data-map]'));
+    /* One polyline per vehicle, from the same map the fleet page uses.
+       `makeTrack` cannot do this: it sorts every point by time, so several
+       vehicles concatenated together come out interleaved and the map draws
+       a zigzag between vehicles hundreds of kilometres apart. */
+    if (!map) {
+      map = makeFleetMap(at<HTMLElement>('[data-map]'), statusEl, {
+        colour: (_d, i, total) => colourAt(i, total),
+        max: MAX_VEHICLES,
+      });
+      map.onPick((id) => {
+        window.location.href = `${withBase('/vehicle/')}?dataset=${encodeURIComponent(id)}`;
+      });
+    }
+
+    /* The map draws first and from the catalog, so a reader sees where the
+       cohort went while the series arrive. Both go through the same
+       `loadSeries` cache, so nothing is fetched twice. */
+    await map.show(chosen);
 
     loaded = [];
     for (const entry of chosen) {
       try {
         loaded.push({ entry, series: await loadSeries(entry.id) });
-        statusEl.textContent = `${loaded.length} of ${chosen.length} vehicles`
-          + (members.length > chosen.length
-            ? ` · ${members.length - chosen.length} more in this campaign and not drawn`
-            : '');
       } catch {
         /* One vehicle's file failing is not the campaign failing. */
       }
     }
 
     drawRoster();
-    drawMap();
     fillQuantities();
     drawComparison();
   }
@@ -210,45 +222,10 @@ export function makeCampaignPage(root: Document): { load(slug: string | null): P
 
   /** The colour a vehicle takes, matching what the comparison plot draws.
    *  Spread across the viridis ramp the plot uses for the vehicle index, so
-   *  the roster and the figure agree without either having to ask the
-   *  other. */
+   *  the map, the roster and the figure all agree without any of them having
+   *  to ask the others. */
   function colourFor(i: number): string {
-    const n = Math.max(loaded.length - 1, 1);
-    return VIRIDIS[Math.round((i / n) * (VIRIDIS.length - 1))];
-  }
-
-  function drawMap(): void {
-    if (!track || !loaded.length) return;
-    /* One concatenated track, with a NaN row between vehicles so the map's
-       polyline lifts its pen rather than sailing from one to the next. */
-    const parts = loaded.map(({ series }) => series);
-    const total = parts.reduce((n, s) => n + s.rows + 1, 0);
-    const lat = new Float64Array(total);
-    const lon = new Float64Array(total);
-    const time = new Float64Array(total);
-    const index = new Float64Array(total);
-    /* `w`, not `at` — `at` is this module's query helper, and a write cursor
-       called the same thing shadows it inside the loop's scope. In
-       `drawComparison` below that shadow reached the `makeFigure` call and
-       tried to invoke a number. */
-    let w = 0;
-    parts.forEach((s, k) => {
-      const la = s.columns.get('lat')!;
-      const lo = s.columns.get('lon')!;
-      const t = s.columns.get('time')!;
-      for (let i = 0; i < s.rows; i++) {
-        lat[w] = la[i]; lon[w] = lo[i]; time[w] = t[i]; index[w] = k;
-        w++;
-      }
-      lat[w] = NaN; lon[w] = NaN; time[w] = NaN; index[w] = NaN;
-      w++;
-    });
-
-    track.update({
-      lon, lat, time, n: total,
-      colour: { values: index, colormap: 'viridis' },
-    });
-    track.fit();
+    return colourAt(i, loaded.length);
   }
 
   function fillQuantities(): void {
@@ -336,6 +313,11 @@ export function makeCampaignPage(root: Document): { load(slug: string | null): P
   });
 
   return { load };
+}
+
+function colourAt(i: number, total: number): string {
+  const n = Math.max(total - 1, 1);
+  return VIRIDIS[Math.round((i / n) * (VIRIDIS.length - 1))];
 }
 
 /** Ten samples of viridis, for the roster swatches. Taken from the same

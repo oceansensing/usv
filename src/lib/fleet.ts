@@ -91,7 +91,35 @@ export interface FleetMap {
   readonly map: L.Map;
 }
 
-export function makeFleetMap(element: HTMLElement, status: HTMLElement): FleetMap {
+export interface FleetMapOptions {
+  /**
+   * What colour a record's track takes.
+   *
+   * The fleet page colours by vendor — three colours, so a reader can see at
+   * a glance which company built what. A campaign page colours by the
+   * vehicle's place in its roster, so the list beside the map *is* the
+   * legend. Same map, different question.
+   */
+  colour?: (record: CatalogEntry, index: number, total: number) => string;
+  /** How many tracks to draw before counting the rest. */
+  max?: number;
+}
+
+/**
+ * **This is what draws several tracks, and `makeTrack` is not.**
+ *
+ * `makeTrack` is one deployment's path coloured by a variable, and it does
+ * two things that are right for that and wrong for a fleet: it *skips* a
+ * non-finite position rather than lifting the pen, and it **sorts every
+ * point by time**. Handed several vehicles concatenated together, the sort
+ * interleaves them and the map draws a zigzag between vehicles hundreds of
+ * kilometres apart — which is exactly what the campaign page did before it
+ * was moved here. One polyline per record is the only shape that cannot do
+ * that.
+ */
+export function makeFleetMap(
+  element: HTMLElement, status: HTMLElement, options: FleetMapOptions = {},
+): FleetMap {
   /* `fadeAnimation: false` because Leaflet drives the fade from
      `requestAnimationFrame`, which a background tab never runs — so tiles
      that finished downloading sit at `opacity: 0` until the tab is focused. */
@@ -131,7 +159,7 @@ export function makeFleetMap(element: HTMLElement, status: HTMLElement): FleetMa
     dots.clearLayers();
 
     const drawable = records.filter((d) => d.kind !== 'files' && d.rows);
-    const chosen = drawable.slice(0, MAX_TRACKS);
+    const chosen = drawable.slice(0, options.max ?? MAX_TRACKS);
     if (!chosen.length) {
       status.textContent = drawable.length === 0 && records.length
         ? 'No track has been built for these records.'
@@ -159,7 +187,7 @@ export function makeFleetMap(element: HTMLElement, status: HTMLElement): FleetMa
         try {
           const series = await loadSeries(d.id);
           if (mine !== generation) return;
-          drawTrack(series, d);
+          drawTrack(series, d, i, chosen.length);
         } catch {
           /* One vehicle's file failing is not the map failing. The count
              says how many arrived. */
@@ -173,7 +201,10 @@ export function makeFleetMap(element: HTMLElement, status: HTMLElement): FleetMa
 
     if (bounds.isValid()) map.fitBounds(bounds, { padding: [24, 24] });
 
-    function drawTrack(series: Awaited<ReturnType<typeof loadSeries>>, d: CatalogEntry) {
+    function drawTrack(
+      series: Awaited<ReturnType<typeof loadSeries>>, d: CatalogEntry,
+      index: number, total: number,
+    ) {
       const lat = series.columns.get('lat')!;
       const lon = series.columns.get('lon')!;
       const points: Array<[number, number]> = [];
@@ -194,7 +225,9 @@ export function makeFleetMap(element: HTMLElement, status: HTMLElement): FleetMa
       }
       if (points.length < 2) return;
 
-      const colour = VENDOR_COLOR[d.vendor] ?? '#888';
+      const colour = options.colour
+        ? options.colour(d, index, total)
+        : VENDOR_COLOR[d.vendor] ?? '#888';
 
       /* **Two rules stand between an invisible hit line and a clickable
          one.** A 2 px stroke is very hard to hit and a diagonal one is
