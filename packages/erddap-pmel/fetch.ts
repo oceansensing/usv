@@ -115,6 +115,21 @@ export interface FetchOptions extends QueryOptions {
       "no rows". PMEL's cold-cache responses reach 60 s and occasionally
       time out; a retry is much cheaper than losing the dataset. */
   retries?: number;
+  /**
+   * How long to wait for one request, in milliseconds.
+   *
+   * **Without this a build can hang forever.** `fetch` has no default
+   * timeout: a server that accepts a connection and then neither answers nor
+   * closes it leaves the promise pending, and the retry loop below never
+   * runs because nothing ever throws. Observed on
+   * `chanceMC29_NEFSC_nantucket_2026_fullres`, which wedged a serial build
+   * for twenty-five minutes on one record — past any path through three
+   * attempts and their backoffs, which is what gave it away.
+   *
+   * Five minutes: the slowest honest response measured against this server
+   * was 61 s cold, so anything past this is wedged rather than slow.
+   */
+  timeoutMs?: number;
 }
 
 /**
@@ -131,6 +146,7 @@ export async function fetchTable(
   const base = opts.base ?? PMEL;
   const fetchImpl = opts.fetchImpl ?? fetch;
   const retries = opts.retries ?? 2;
+  const timeoutMs = opts.timeoutMs ?? 300_000;
 
   const decimate = opts.minutes !== undefined
     && !isFullRate(opts.minutes, opts.cadenceSeconds ?? 0);
@@ -149,7 +165,7 @@ export async function fetchTable(
   let lastError: unknown;
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
-      const response = await fetchImpl(url);
+      const response = await fetchImpl(url, { signal: AbortSignal.timeout(timeoutMs) });
       if (!response.ok) {
         const empty = response.status === 404;
         throw new ErddapError(
@@ -187,7 +203,10 @@ export async function fetchTable(
            and `build-series.mjs` runs one request at a time for the same
            reason. */
         const busy = error instanceof ErddapError && error.status === 408;
-        await sleep((busy ? 20_000 : 1500) * (attempt + 1));
+        /* A timeout is the same situation as a 408 — the server is not going
+           to answer this second either — so it gets the same long backoff. */
+        const timedOut = (error as Error)?.name === 'TimeoutError';
+        await sleep((busy || timedOut ? 20_000 : 1500) * (attempt + 1));
       }
     }
   }
