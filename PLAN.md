@@ -180,10 +180,13 @@ path, so rebuilding is the only way the site gets fresher.
 
 ## Open
 
-- **`chanceMC29_NEFSC_nantucket_2026_fullres` times out.** The high-resolution
-  Chance product returns 408 after three attempts; it is the one record in
-  the archive the build cannot get. Probably needs a chunked fetch, which the
-  build otherwise has no use for.
+- **`chanceMC29_NEFSC_nantucket_2026_fullres` still cannot be fetched.** One
+  record of 153. Its 408 says the server is busy with another request from
+  this client, which was true when the build ran three at a time and is not
+  now — so something else is going on, and a narrower query did not help
+  either. It costs a bounded fifteen minutes of each build (three attempts at
+  the five-minute timeout) and the site says so on its page and links to the
+  ERDDAP. A chunked fetch is the obvious next thing to try.
 - **The QC resolution ladder** means a multi-year record is checked at 5 min
   rather than 1 min; a one-minute spike in a 2021 record is not looked for.
   Stated on every page rather than hidden, but a second pass at native rate
@@ -194,6 +197,15 @@ path, so rebuilding is the only way the site gets fresher.
 - **The comparison figure has no per-vehicle legend beyond the roster.** A
   colour bar labelled 0–1 is honest and not friendly; a categorical legend
   drawn from the roster would be better.
+- **A multi-vehicle record's *series* is still interleaved.** Thirteen
+  records carry several vehicles in one table. Their tracks are no longer
+  drawn — the map shows the area worked instead — but the time series still
+  step between vehicles row by row, which for `all_swfsc_2023` means a
+  temperature trace that jumps between three Saildrones. Splitting them needs
+  the `trajectory` column, which the parser turns to NaN because it is a
+  string; ERDDAP's `distinct()` would give the values in one small request
+  per record. Worth doing: `saildrone_arctic_2018` is the only record of the
+  2018 Arctic met and ocean data, and it is one of the thirteen.
 - **`orderByClosest` alignment is assumed to hold for every sensor.** It was
   measured on the Saildrone SBE37 at five minutes. A sensor reporting on some
   other period — three minutes, say — would be sampled between its rows by
