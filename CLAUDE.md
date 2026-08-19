@@ -262,6 +262,62 @@ a sample that may or may not have survived. Each dataset records the
 resolution its QC ran at and the page prints it: a check that did not look
 at a rate must not imply it did.
 
+### What the first shard actually measured
+
+`usv-data-2026` was built, published, and then read back in full — all 74
+chunks, 2026-08-19. The design above survived it; these are the numbers it
+replaced estimates with.
+
+| | |
+|---|---|
+| the season, one month in | 24 records, 413,498 rows, 74 chunks, **15.66 MB** |
+| the encoding | 12.85 M values → **1.28 B/value gzipped** |
+| a chunk, inflated in the tab | 9,421 rows × 29 columns in **143 ms** |
+| how it is served | `application/gzip`, `content-encoding` absent |
+
+The 1.28 B/value figure re-predicts the archive to **0.66 GB total**, largest
+season 2021 at **168 MB** — under the earlier 794 MB projection, which was
+taken from a single month of Saildrone data before any shard existed. The new
+estimate reproduces the real shard to **1.009×** in aggregate, and 0.99–1.04×
+on the Saildrone records that carry most of the bytes. It is *not* reliable
+per record: on the Oshens it ranges 0.31× to 2.14×, because their cadence
+changes mid-mission and `span / cadence` is then a bad count of rows. Both
+conclusions the sharding rests on hold with more room than they were given.
+
+**Closed chunks come back byte-identical across rebuilds**, checked by
+refetching four of sd1030's after a rebuild had moved the fifth. That is the
+contract a saved link depends on, and it holds because a chunk number is
+`floor(t / 604800)` — a fact about the timestamp, not about the record — so
+a record that gains data gains chunks and never renumbers the ones it had.
+
+### A window needs a ceiling, because selecting one is a single gesture
+
+A reader windows by dragging across a figure, so **selecting a whole mission
+costs exactly as much effort as selecting an hour** and nothing in the
+gesture says how long the mission is. Measured, the whole of
+`chanceMC40_NEFSC_outershelf_2026_nrt` is five weeks, 2.8 MB, 170 ms — fine.
+But 2026 is the *shortest* season in the archive:
+
+| record | weeks | uncapped cost of one drag |
+|---|---|---|
+| `chanceMC40_…_2026_nrt` | 5 | 2.8 MB — measured |
+| `sd1041_hurricane_2024` | 33 | 14.3 MB, 33 parallel requests |
+| **`sd1065_tpos_2021`** | **63** | **26.5 MB, 63 parallel requests** |
+
+`MAX_WINDOW_CHUNKS` is **8** — twice the largest window measured here, about
+5 MB at Saildrone rates. Past it the reader has selected a season rather than
+an event, the overview is the instrument for that, and the page says so
+instead of spending the connection on samples no screen resolves.
+
+### Full rate is only offered where it is finer
+
+A record short enough to escape the 8,000-point budget is drawn whole, so its
+shard holds exactly the samples already on screen. That is **14 of the 2026
+shard's 24 records**, every Oshen among them — and on several the shard holds
+*fewer* rows than the overview, the two tiers having been fetched minutes
+apart. So the page compares the two counts before it offers anything, and
+where there is no finer view it says so and asks for no chunk at all.
+
 ---
 
 ## 4. The physics
@@ -480,3 +536,28 @@ Each was written, run, and found to be wrong. Each now has a gate.
   missing the three map-marker colours entirely, so the exported PNG's
   markers and the page's disagreed. *Gate:* `test:contrast` compares the
   exporter's constants against the tokens.
+- **The detail tier was offered where it held nothing extra.** A record under
+  the 8,000-point budget is drawn whole, so its shard is the same samples
+  again — 14 of the 2026 shard's 24, and on several the shard has *fewer*
+  rows than the overview. The page said "5,739 samples at full rate are
+  available: narrow to a stretch" to a reader already looking at all 5,739.
+  It compares before it promises now. *Gate:* the comparison is on the page's
+  own numbers, so no fixture can go stale under it.
+- **One drag could have asked for 26.5 MB.** A window is a drag across a
+  figure, and the cost of that gesture is the length of the mission, which
+  the gesture does not mention. Nothing capped it. It never bit, because the
+  only sharded season is the archive's shortest — 2026's longest record is
+  five weeks. `sd1065_tpos_2021` is 63. *Gate:* `test:vars` asserts the cap
+  sits above the largest window measured here and below that record.
+- **Two fallbacks announced the overview without returning to it.** A window
+  covering no chunk, and a chunk that 404s, both left the previous window's
+  full-rate columns in `detailSource` while the note said the overview was
+  shown. Neither is reachable by dragging — a reader cannot select a stretch
+  the figure is not drawing — which is exactly why they survived a first
+  reading. A shared link carrying a stale window reaches both.
+- **A shard's `cadenceSeconds` describes a record that has only one cadence.**
+  It is the median over the whole record, and 11 of the 15 Oshen chunks
+  disagree with their own record's figure — `oshenPD19` is published as 120 s
+  and its last week runs at 600. Nothing reads the field, so nothing is
+  wrong on screen; it is recorded here because the next thing to read it will
+  believe it.

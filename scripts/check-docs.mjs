@@ -137,6 +137,34 @@ section('the shard scheme is written down where it is needed');
   ok('and the detail build command', /data:detail/.test(docs));
 }
 
+section('what the first shard measured is written down');
+
+{
+  /* These replaced estimates with measurements, and an estimate that quietly
+     comes back is worse than one that never left. Each is a number taken
+     from the published shard on 2026-08-19. */
+  const docs = read('CLAUDE.md') + read('PLAN.md') + read('NEXT.md') + read('README.md');
+  const facts = [
+    ['the shard was read back in full', /74 chunks/],
+    ['its measured size', /15\.66 MB/],
+    ['the encoding it implies', /1\.28 B\/value/],
+    ['that closed chunks survive a rebuild', /byte-identical/],
+    ['the record the window cap exists for', /26\.5 MB/],
+    ['and how many records gain nothing from full rate', /14 of/],
+  ];
+  for (const [what, pattern] of facts) {
+    ok(`${what} is documented`, pattern.test(docs));
+  }
+
+  /* The cap is a published limit a reader meets by dragging, so the number
+     in the code and the number in the prose have to be the same one. */
+  const shard = read('packages/usv-vars/shard.ts');
+  const cap = /MAX_WINDOW_CHUNKS\s*=\s*(\d+)/.exec(shard)?.[1];
+  ok('the window cap is defined in one place', Boolean(cap), `${cap}`);
+  ok('and the documents state the number the code uses',
+    new RegExp(`\\b${cap}\\b`).test(docs), `${cap}`);
+}
+
 section('the live URL is stated the same way everywhere');
 
 {

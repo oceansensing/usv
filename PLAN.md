@@ -152,14 +152,28 @@ the site, so no CORS and no CSP change.
 
 A vehicle page opens on the overview and says how many full-rate samples
 exist; narrowing to a stretch fetches the weeks it covers, about 380 KB each,
-and every figure redraws at the rate the instruments reported. Verified end
-to end against a local copy of the production layout: a three-day window on
-`sd1030_hurricane_2026` goes from 720 drawn points to **4,319** — 3 × 1440
-minutes — with 4,319 vertices actually in the SVG.
+and every figure redraws at the rate the instruments reported. Verified in a
+real browser on the live site: a three-day window on `sd1030_hurricane_2026`
+goes from 720 drawn points to **4,319** — 3 × 1440 minutes — with 4,319
+vertices actually in the SVG.
+
+Then stress-tested, 2026-08-19, by reading the published shard back in full.
+All 74 chunks, 12.85 M values: **0 structural failures** — every row in the
+chunk its number claims, every count and length agreeing, and closed chunks
+byte-identical across a rebuild, which is what a saved link rests on. All
+three vendors work, not just the Saildrone it was built on. Both tiers agree
+on which 24 records exist.
+
+It found two things wrong, both about what the page does rather than what the
+shard holds: a window had **no ceiling** — one drag on the archive's longest
+record would have asked for 63 chunks and 26.5 MB — and full rate was offered
+on 14 records that had nothing finer to give. Fixed in `86d8f5a`; both are in
+`CLAUDE.md` §7. The shard itself needed no change, which is the result that
+matters before it is replicated nine times.
 
 ### The gates
 
-**683 offline checks** in eight suites, chained by `npm run verify`. Nothing
+**792 offline checks** in eight suites, chained by `npm run verify`. Nothing
 in it touches the network, so it cannot fail because PMEL is having a bad
 morning — which is exactly when you least want the deploy blocked.
 
@@ -222,10 +236,14 @@ path, so rebuilding is the only way the site gets fresher.
   2018 Arctic met and ocean data, and it is one of the thirteen.
 - **Only 2026 is sharded.** The other nine seasons need their repositories
   created and built — the same command with a different `--season`, which is
-  the point of doing one first.
+  the point of doing one first. The shard is now stress-tested and in final
+  form, so this is the next job; `NEXT.md` carries it, with the per-season
+  sizes and what to watch for.
 - **The QC still runs on the overview's resolution**, not the full-rate tier.
-  Now that every sample is fetched anyway, a one-minute spike in a 2021
-  record could be looked for; today the page correctly says it was not.
+  Measured, this bites less than it looked: the QC runs *before* the
+  decimation, so every 2026 Saildrone and Chance record is already checked at
+  native rate. It becomes real for 2021 and 2024, whose long records are
+  checked at 5 minutes and where a one-minute spike is not looked for.
 - **`orderByClosest` alignment is assumed to hold for every sensor.** It was
   measured on the Saildrone SBE37 at five minutes. A sensor reporting on some
   other period — three minutes, say — would be sampled between its rows by
