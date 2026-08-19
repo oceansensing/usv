@@ -205,6 +205,38 @@ for (const { file, dom } of docs) {
 }
 
 /* ------------------------------------------------------------------------ */
+section('the way back to the lab');
+
+/* The footer has carried this link since the site was built, which is exactly
+ * why the header one needs a check: losing it degrades to a link that still
+ * exists further down the page, so nothing looks broken. A fallback is a
+ * disguise.
+ *
+ * Checked on **every** page rather than the home page, because the reader who
+ * needs it is the one deep in a vehicle figure, not the one who just arrived.
+ *
+ * The expected address is read out of `src/config.ts` rather than written
+ * here, so this tracks `LAB.url` instead of drifting from it. */
+{
+  const labUrl = /url: *'([^']+)'/.exec(
+    /export const LAB = \{(.*?)\} as const;/s.exec(
+      fs.readFileSync('src/config.ts', 'utf8'))?.[1] ?? '')?.[1];
+  ok('config declares a lab URL for the header to use', typeof labUrl === 'string',
+    String(labUrl));
+
+  for (const { file, dom } of docs) {
+    const header = dom.window.document.querySelector('header');
+    const links = [...(header?.querySelectorAll('a') ?? [])]
+      .filter((a) => a.getAttribute('href') === labUrl);
+    ok(`${file} links back to the lab from its header`, links.length === 1,
+      `${links.length} link(s) to ${labUrl}`);
+    /* An absolute URL inside `nav` would be a link the base-path check is
+       right to reject, so the placement is part of the claim. */
+    ok(`  and outside the nav`, links.length === 1 && links[0].closest('nav') === null);
+  }
+}
+
+/* ------------------------------------------------------------------------ */
 section('what the pages promise about the data');
 
 /* Every page that shows an observation has to be able to say where it came

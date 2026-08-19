@@ -143,6 +143,15 @@ points and rounds each column to what its instrument resolves.
 - **`/about/`** — the sources, what was converted, what was computed here,
   and what the checks do not claim.
 
+Every one of them carries **the way back to the lab in its header** — `← C4PO`
+above the wordmark, from `LAB.url`. The footer has carried the same link since
+the site was built, which is why the header one is gated rather than trusted:
+losing it degrades to a link that still exists further down the page, so
+nothing looks broken. It sits outside `nav` deliberately, being a parent
+rather than a peer of this site's pages. `test:pages` checks all six pages,
+not just the home page, because the reader who needs it is the one deep in a
+vehicle figure; mutation-tested by deleting the link.
+
 ### The full-rate tier
 
 `npm run data:detail -- --season 2026` writes weekly, pre-gzipped chunks plus
@@ -173,7 +182,7 @@ matters before it is replicated nine times.
 
 ### The gates
 
-**863 offline checks** in nine suites, chained by `npm run verify`. Nothing
+**876 offline checks** in nine suites, chained by `npm run verify`. Nothing
 in it touches the network, so it cannot fail because PMEL is having a bad
 morning — which is exactly when you least want the deploy blocked.
 
