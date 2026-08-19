@@ -14,7 +14,7 @@ import fs from 'node:fs';
 import { check, done, ok, section } from './lib/check.mjs';
 import { parseInfo } from '../packages/erddap-pmel/index.ts';
 import {
-  BY_KEY, conversionFor, DEFAULT_STACK, isKnownUnit, labelFor, QUANTITIES,
+  BY_KEY, conversionFor, DEFAULT_STACK, isKnownUnit, QUANTITIES,
   resolveDataset, resolveVariable, sensorOf, splitStatistic, unitFault,
 } from '../packages/usv-vars/index.ts';
 import { COLORMAPS } from '../packages/plot/index.ts';

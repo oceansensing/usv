@@ -1,0 +1,118 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  # **A schedule, unlike the sibling glider site — and for the opposite
+  # reason.** That site renders nothing at build time: its catalog and every
+  # profile are fetched by the reader's browser, so a nightly rebuild would
+  # publish byte-identical output.
+  #
+  # This site cannot do that. `data.pmel.noaa.gov` sends no
+  # `Access-Control-Allow-Origin` header, so the data is fetched by the build
+  # and served from this origin — which means **the only way this site gets
+  # fresher is by rebuilding**. Four times a day: an active hurricane mission
+  # reports every one to five minutes, and six hours behind is a page a
+  # forecaster can still use, where a day behind is not.
+  schedule:
+    - cron: '20 1,7,13,19 * * *'
+
+# Read-only by default; the two write scopes are granted to the one job that
+# needs them. `npm ci` runs install scripts and `npm run verify` runs the
+# harnesses, so neither should have a Pages-write token or an OIDC identity
+# sitting in its environment.
+#
+# Actions are pinned to commit SHAs with the tag they came from beside them.
+# A tag is mutable — whoever controls that repository can move `v4` onto any
+# commit, and every workflow naming it runs the new code on the next push
+# with nothing to review.
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  # The gate. Nothing reaches Pages unless this passes. It runs entirely
+  # offline — every test reads a committed fixture rather than PMEL — so it
+  # cannot fail because an upstream server is having a bad morning, which is
+  # exactly when you least want the deploy blocked.
+  verify:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: verify-${{ github.ref }}-${{ github.event_name }}
+      cancel-in-progress: true
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run verify
+
+  # Fetch, check and bake the data, then build the site around it. Separate
+  # from `verify` because this one *does* need the network and *can* fail
+  # because PMEL is slow — and when it does, the previous deploy stays up
+  # rather than being replaced by a site with no data in it.
+  build:
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    # Cold, all 153 records take about 40 minutes against PMEL; warm, only
+    # the active missions move. This is that plus room.
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # **The cache is what makes a four-times-daily rebuild affordable.**
+      # Every entry is keyed on its record's last report time, so a historic
+      # record is valid forever and an active mission invalidates itself —
+      # there is nothing to expire and nothing to tune. Without it every run
+      # would refetch the whole archive to change the dozen records that
+      # moved.
+      #
+      # `restore-keys` is what makes it work at all: the primary key carries
+      # the run number so every run writes a *new* entry (GitHub's cache is
+      # immutable once written), and the prefix match restores the most
+      # recent previous one.
+      - uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4
+        with:
+          path: .cache
+          key: erddap-${{ github.run_id }}
+          restore-keys: |
+            erddap-
+
+      - run: npm ci
+      - run: npm run data
+      - run: npm run build
+
+      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    # The only job that publishes, so the only one holding the scopes to.
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    # `actions/deploy-pages` polls for ten minutes of its own before giving
+    # up, so this is that plus room rather than a tighter deadline.
+    timeout-minutes: 15
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4

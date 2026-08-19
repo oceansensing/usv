@@ -13,11 +13,19 @@ import { withBase } from '../lib/url';
 
 <BaseLayout wide title="Campaigns">
   <div class="container wide">
+    <!--
+      One `h1`, shared. Both views live in this document and only one is ever
+      shown, but a hidden heading is still a heading: two `h1` elements is two
+      document titles to anything reading the outline rather than the pixels.
+      Its text is set by the script when a campaign is named.
+    -->
+    <div class="topline">
+      <h1 class="figure-title" data-title>Campaigns</h1>
+      <a class="eyebrow" href={withBase('/campaign/')} data-back hidden>← all campaigns</a>
+    </div>
+
     <!-- The list. Shown when no campaign is named. -->
     <div data-campaigns-wrap hidden>
-      <div class="topline">
-        <h1 class="figure-title">Campaigns</h1>
-      </div>
       <p class="lede">
         The missions these vehicles flew, and who flew them together. A
         campaign page puts every vehicle in a cohort on one map and one axis.
@@ -27,11 +35,6 @@ import { withBase } from '../lib/url';
 
     <!-- One campaign. -->
     <div data-campaign hidden>
-      <div class="topline">
-        <h1 class="figure-title" data-title></h1>
-        <a class="eyebrow" href={withBase('/campaign/')}>← all campaigns</a>
-      </div>
-
       <div class="figure-full split">
         <figure class="map-figure">
           <figcaption class="topline">

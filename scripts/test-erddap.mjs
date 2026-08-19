@@ -15,7 +15,7 @@ import { check, done, ok, section, throws } from './lib/check.mjs';
 import {
   campaignOf, campaignYear, chooseRung, intervalString, isActive, isFullRate,
   kindOf, LADDER, medianCadence, parseCatalog, parseInfo, parseIsoTime,
-  parseJsonlCsv, tabledapUrl, variantOf, vehicleOf, vendorOf,
+  parseJsonlCsv, tabledapUrl, variantOf, vehicleOf,
 } from '../packages/erddap-pmel/index.ts';
 
 const fixture = (name) =>

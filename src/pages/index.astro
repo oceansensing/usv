@@ -123,13 +123,19 @@ import { withBase } from '../lib/url';
     emptyFilters, makeFleetMap, matches, yearsOf,
   } from '../lib/fleet.ts';
   import {
-    duration, isActive, isoDay, loadCatalog, since, type CatalogEntry,
+    isActive, isoDay, loadCatalog, since, type CatalogEntry,
   } from '../lib/data.ts';
   import { withBase } from '../lib/url.ts';
 
   /** How many rows the table draws before the rest are counted. A table of
       153 is fine; the count is there because the filter can widen. */
   const PAGE = 200;
+
+  /** Worst first when sorting by quality. Typed as an open record because
+      the key can be the empty string — a record with nothing found — and a
+      literal object would not admit it. */
+  const SEVERITY_RANK: Record<string, number> =
+    { high: 4, medium: 3, low: 2, note: 1 };
 
   const form = document.querySelector('[data-filters]') as HTMLFormElement;
   const rowsEl = document.querySelector('[data-rows]') as HTMLElement;
@@ -220,7 +226,7 @@ import { withBase } from '../lib/url';
          sorts last rather than first — "no findings" is an answer, not the
          top of a ranking. */
       if (sortKey === 'severity') {
-        return { high: 4, medium: 3, low: 2, note: 1 }[d.severity ?? ''] ?? 0;
+        return SEVERITY_RANK[d.severity ?? ''] ?? 0;
       }
       return (d as unknown as Record<string, string | number>)[sortKey] ?? '';
     };

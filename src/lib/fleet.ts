@@ -12,7 +12,6 @@ import { sample } from '@c4po/plot';
 import {
   type CatalogEntry, duration, isActive, isoDay, loadCatalog, loadSeries,
 } from './data.ts';
-import { withBase } from './url.ts';
 import { VENDOR_COLOR } from '../config.ts';
 
 /**

@@ -25,11 +25,10 @@ import { makeFigure, type Figure, type Source } from './figure.ts';
 import { makeTrack, type Track } from './track.ts';
 import type { Plottable } from './variables.ts';
 import {
-  duration, isActive, isoDay, loadCatalog, loadSeries, since,
+  duration, isActive, isoDay, loadCatalog, loadSeries,
   type Campaign, type CatalogEntry, type Series,
 } from './data.ts';
 import { withBase } from './url.ts';
-import { VENDOR_COLOR } from '../config.ts';
 
 /** How many vehicles are drawn at once. A cohort is typically eight to
  *  twenty; past this the comparison axis is a thicket and the fetch is most
@@ -56,6 +55,7 @@ export function makeCampaignPage(root: Document): { load(slug: string | null): P
   const listEl = at<HTMLElement>('[data-campaigns]');
   const oneEl = at<HTMLElement>('[data-campaign]');
   const titleEl = at<HTMLElement>('[data-title]');
+  const backEl = at<HTMLElement>('[data-back]');
   const factsEl = at<HTMLElement>('[data-facts]');
   const rosterEl = at<HTMLElement>('[data-roster]');
   const statusEl = at<HTMLElement>('[data-status]');
@@ -70,6 +70,7 @@ export function makeCampaignPage(root: Document): { load(slug: string | null): P
     if (!slug) {
       listWrap.hidden = false;
       oneEl.hidden = true;
+      backEl.hidden = true;
       drawList(catalog.campaigns, catalog.datasets);
       return;
     }
@@ -78,6 +79,7 @@ export function makeCampaignPage(root: Document): { load(slug: string | null): P
     if (!campaign) {
       listWrap.hidden = false;
       oneEl.hidden = true;
+      backEl.hidden = true;
       const missing = document.createElement('p');
       missing.className = 'error';
       missing.textContent = `No campaign called “${slug}”. Every one that exists is below.`;
@@ -88,6 +90,7 @@ export function makeCampaignPage(root: Document): { load(slug: string | null): P
 
     listWrap.hidden = true;
     oneEl.hidden = false;
+    backEl.hidden = false;
     document.title = `${campaign.label} · USV`;
     titleEl.textContent = campaign.label;
 
@@ -224,17 +227,21 @@ export function makeCampaignPage(root: Document): { load(slug: string | null): P
     const lon = new Float64Array(total);
     const time = new Float64Array(total);
     const index = new Float64Array(total);
-    let at = 0;
+    /* `w`, not `at` — `at` is this module's query helper, and a write cursor
+       called the same thing shadows it inside the loop's scope. In
+       `drawComparison` below that shadow reached the `makeFigure` call and
+       tried to invoke a number. */
+    let w = 0;
     parts.forEach((s, k) => {
       const la = s.columns.get('lat')!;
       const lo = s.columns.get('lon')!;
       const t = s.columns.get('time')!;
       for (let i = 0; i < s.rows; i++) {
-        lat[at] = la[i]; lon[at] = lo[i]; time[at] = t[i]; index[at] = k;
-        at++;
+        lat[w] = la[i]; lon[w] = lo[i]; time[w] = t[i]; index[w] = k;
+        w++;
       }
-      lat[at] = NaN; lon[at] = NaN; time[at] = NaN; index[at] = NaN;
-      at++;
+      lat[w] = NaN; lon[w] = NaN; time[w] = NaN; index[w] = NaN;
+      w++;
     });
 
     track.update({
@@ -272,18 +279,18 @@ export function makeCampaignPage(root: Document): { load(slug: string | null): P
     const time = new Float64Array(total);
     const value = new Float64Array(total);
     const index = new Float64Array(total);
-    let at = 0;
+    let w = 0;
     loaded.forEach(({ series }, k) => {
       const t = series.columns.get('time')!;
       const v = series.columns.get(key)!;
       for (let i = 0; i < series.rows; i++) {
-        time[at] = t[i]; value[at] = v[i]; index[at] = k;
-        at++;
+        time[w] = t[i]; value[w] = v[i]; index[w] = k;
+        w++;
       }
       /* The gap. The engine lifts its pen over a NaN rather than drawing a
          chord, which is what turns one series into N lines. */
-      time[at] = NaN; value[at] = NaN; index[at] = NaN;
-      at++;
+      time[w] = NaN; value[w] = NaN; index[w] = NaN;
+      w++;
     });
 
     /* **The column is always called `value`, whatever quantity it holds.**
@@ -339,4 +346,4 @@ const VIRIDIS = [
   '#1f9e89', '#35b779', '#6ece58', '#b5de2b', '#fde725',
 ];
 
-export { MAX_VEHICLES, VENDOR_COLOR, since };
+export { MAX_VEHICLES };
