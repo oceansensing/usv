@@ -138,8 +138,16 @@ A season repository holds no code. Its workflow checks this one out and runs
 because **a closed season cannot change**, its shard is built once and never
 rebuilt — only the current season is on a schedule.
 
-Published so far: **[2026](https://oceansensing.org/usv-data-2026/)**. The
-other nine seasons are the same command with a different `--season`.
+Published: **all ten seasons, 2017 through 2026** — one repository each,
+every one serving. This said "published so far: 2026, the other nine are the
+same command with a different `--season`" long after the other nine had been
+run; `NEXT.md` had it right and this file did not.
+
+Note that a season repository's root is a **404 by design** — it holds
+chunks, not a page — so the way to check one is to ask for a chunk a record
+actually spans. `sd1005_2017` covers weeks 2487–2523 and every one of those
+answers; asking for week 0 would 404 on a perfectly healthy shard, which is
+an instrument problem rather than a publication one.
 
 ## Layout
 
