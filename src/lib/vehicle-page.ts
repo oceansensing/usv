@@ -63,9 +63,11 @@ export function makeVehiclePage(root: Document | HTMLElement): VehiclePage {
   const windowLabel = at<HTMLElement>('[data-window-label]');
   const siblingsEl = at<HTMLElement>('[data-siblings]');
   const siblingsWrap = at<HTMLElement>('[data-siblings-wrap]');
+  const siblingsHead = at<HTMLElement>('[data-siblings-head]');
   const contentEl = at<HTMLElement>('[data-content]');
   const trackWrap = at<HTMLElement>('[data-track-wrap]');
   const noTrackEl = at<HTMLElement>('[data-no-track]');
+  const interleavedEl = at<HTMLElement>('[data-interleaved]');
 
   let series: Series | null = null;
   /** Taken from the catalog rather than the series file, because the catalog
@@ -142,9 +144,14 @@ export function makeVehiclePage(root: Document | HTMLElement): VehiclePage {
     if (multiVehicle) {
       trackWrap.hidden = true;
       noTrackEl.hidden = false;
+      /* Said twice, above the map and above the series, because they are two
+         different claims and a reader who scrolls past the first one is
+         exactly the reader who needs the second. */
+      interleavedEl.hidden = false;
     } else {
       trackWrap.hidden = false;
       noTrackEl.hidden = true;
+      interleavedEl.hidden = true;
       /* The map is built once the container has a size. Leaflet measures at
          construction, and this page is still assembling. */
       if (!track) track = makeTrack(at<HTMLElement>('[data-map]'));
@@ -434,7 +441,6 @@ export function makeVehiclePage(root: Document | HTMLElement): VehiclePage {
   }
 
   async function drawSiblings(id: string, vehicle: string): Promise<void> {
-    if (!vehicle) { siblingsWrap.hidden = true; return; }
     let catalog;
     try {
       catalog = await loadCatalog();
@@ -442,13 +448,28 @@ export function makeVehiclePage(root: Document | HTMLElement): VehiclePage {
       siblingsWrap.hidden = true;
       return;
     }
-    const family = catalog.datasets.filter(
-      (d) => d.vehicle === vehicle && d.campaign === series!.doc.campaign && d.id !== id,
-    );
+    const campaign = series!.doc.campaign;
+
+    /* **A record with no vehicle of its own gets the campaign's instead.**
+       For a multi-vehicle table the useful neighbours are the per-vehicle
+       records covering the same mission — which is what the copy above tells
+       the reader to read, so it has to actually list them. */
+    const family = vehicle
+      ? catalog.datasets.filter(
+        (d) => d.vehicle === vehicle && d.campaign === campaign && d.id !== id)
+      : catalog.datasets.filter(
+        (d) => d.campaign === campaign && d.id !== id && !d.multiVehicle
+          && d.kind !== 'files');
+
     if (!family.length) { siblingsWrap.hidden = true; return; }
     siblingsWrap.hidden = false;
+    siblingsHead.textContent = vehicle
+      ? 'Also from this vehicle'
+      : 'The individual vehicles';
 
-    siblingsEl.replaceChildren(...family.map((d) => sibling(d)));
+    siblingsEl.replaceChildren(...family
+      .sort((a, b) => (a.vehicle || a.id).localeCompare(b.vehicle || b.id))
+      .map((d) => sibling(d)));
   }
 
   function sibling(d: CatalogEntry): HTMLElement {
@@ -458,7 +479,8 @@ export function makeVehiclePage(root: Document | HTMLElement): VehiclePage {
     const link = document.createElement('a');
     if (plottable) {
       link.href = `${withBase('/vehicle/')}?dataset=${encodeURIComponent(d.id)}`;
-      link.textContent = d.variant ? `${d.variant} product` : d.title;
+      link.textContent = d.variant ? `${d.variant} product`
+        : d.vehicle || d.title;
     } else {
       /* Straight to PMEL: there is nothing here to show, and sending a
          reader to a page of this site that says so would waste the click. */
