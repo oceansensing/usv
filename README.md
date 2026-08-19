@@ -61,7 +61,7 @@ knots at 0.66 m, and they look like different weather.
 
 The PMEL archive publishes **no QC flags** on the 2026 fleet, on any Oshen
 and on any Chance record, so every quality statement on this site is
-computed here and says so. Nine checks run over each record when the site is
+computed here and says so. Ten checks run over each record when the site is
 built — gaps, spikes, stuck sensors, impossible values, dead sensors,
 position dropouts, cadence changes, metadata faults and cohort outliers —
 and the findings are ranked fleet-wide on the
@@ -111,7 +111,7 @@ npm run verify
 ```
 
 Builds, type-checks, gates the documentation and runs the nine offline test
-suites — 833 checks. Nothing in it touches the network.
+suites — 863 checks. Nothing in it touches the network.
 
 ## Where the data lives
 
@@ -147,7 +147,7 @@ other nine seasons are the same command with a different `--season`.
 packages/erddap-pmel/  the PMEL tabledap client: catalog, metadata, queries
 packages/usv-vars/     429 vendor column names → 63 canonical quantities,
                        and which season repository holds a record's full rate
-packages/usv-qc/       the nine quality checks, and how a finding is ranked
+packages/usv-qc/       the ten quality checks, and how a finding is ranked
 packages/plot/         the SVG plot engine, colormaps and PNG export
 packages/teos10/       seawater properties, from the GSW definitions
 scripts/               the data builds, and the test suites

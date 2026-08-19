@@ -227,3 +227,34 @@ export function infoCache() {
     fileURLToPath(new URL('../../.cache/info', import.meta.url)), INFO_FORMAT,
   );
 }
+
+/**
+ * Row indices grouped by the chunk their timestamp falls in.
+ *
+ * Grouped rather than sliced, because a record is not guaranteed to be sorted
+ * and a slice would silently drop whatever is out of order — Oshen records
+ * and the 2020 Arctic Saildrones both step backwards between consecutive
+ * rows.
+ *
+ * **A row with no timestamp cannot be placed and is not returned.** That is
+ * the only correct thing to do with it — there is no week it belongs to — but
+ * it means the count of rows that come out is not the count that went in, and
+ * an index reporting the second promises samples the shard does not hold.
+ * `oshenPC1_hurricane_2025` is 31,983 rows of which **5,493 have no time at
+ * all**, so its shard held 26,490 and its index claimed 31,983. Callers
+ * should take the row count from this, which is why it is returned.
+ */
+export function groupByChunk(time, chunkSeconds) {
+  const groups = new Map();
+  let placed = 0;
+  for (let i = 0; i < time.length; i++) {
+    const t = time[i];
+    if (!Number.isFinite(t)) continue;
+    const c = Math.floor(t / chunkSeconds);
+    let g = groups.get(c);
+    if (!g) groups.set(c, (g = []));
+    g.push(i);
+    placed++;
+  }
+  return { groups, placed, dropped: time.length - placed };
+}

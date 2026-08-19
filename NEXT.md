@@ -1,7 +1,7 @@
-# Next: the remaining eight seasons
+# Next
 
-2026 and 2021 are published and validated — the smallest season and the
-largest. Eight remain, and they are all between the two.
+The archive is fully sharded: ten seasons, all published, all validated
+chunk by chunk. What is left is listed at the bottom.
 
 `README.md` is for someone using the site, `CLAUDE.md` for someone changing
 it, `PLAN.md` for the running record. This is the one job list.
@@ -13,122 +13,82 @@ it, `PLAN.md` for the running record. This is the one job list.
 | | |
 |---|---|
 | site | https://oceansensing.org/usv/ — `oceansensing/usv` |
-| gate | `npm run verify` — 833 offline checks, nine suites |
-| overview | 152 of 153 records, 1.08 M points, 2,403 findings |
-| **2026** | https://oceansensing.org/usv-data-2026/ — 24 records, 74 chunks, **15.7 MB** |
-| **2021** | https://oceansensing.org/usv-data-2021/ — 21 records, 437 chunks, **118.4 MB** |
+| gate | `npm run verify` — 863 offline checks, nine suites |
+| overview | 152 of 153 records, 1.08 M points |
+| full rate | **10 shards, 152 records, 2,190 chunks, 21.8 M rows, 722 MB** |
 
-The site rebuilds four times a day; the 2026 shard fifty minutes after it, on
-the same cadence, and only while the season is open. **2021 has no schedule**
-— it is closed, so it was built once by `workflow_dispatch` and never again.
+`oceansensing/usv-data-<year>` for 2017–2026, each its own Pages project site
+serving at `oceansensing.org/usv-data-<year>/` — the same origin as the site,
+so `connect-src 'self'` is untouched. Only 2026 has a schedule; the nine
+closed seasons were built once by `workflow_dispatch` and will not be built
+again.
 
----
+## Every shard, read back in full
 
-## What the two shards established
+Fetched every chunk and checked it against the index: 2,190 of 2,190 served
+`application/gzip` at 200.
 
-Both were read back in full — 511 chunks, 174 M values — and driven in a real
-browser.
+| season | recs | chunks | rows | MB | B/value | failures |
+|---|---|---|---|---|---|---|
+| 2017 | 3 | 86 | 769,631 | 31.2 | 1.26 | 0 |
+| 2018 | 14 | 238 | 3,577,985 | 123.7 | 1.33 | 0 |
+| 2019 | 21 | 392 | 4,668,220 | **163.9** | 1.33 | 0 |
+| 2020 | 10 | 154 | 782,096 | 11.4 | 0.80 | 0 |
+| 2021 | 21 | 437 | 4,411,931 | 118.4 | 0.77 | 0 |
+| 2022 | 14 | 187 | 1,835,760 | 66.8 | 1.13 | 0 |
+| 2023 | 22 | 308 | 2,924,687 | 104.1 | 1.17 | 0 |
+| 2024 | 15 | 257 | 2,317,338 | 85.5 | 0.97 | 0 |
+| 2025 | 8 | 57 | 104,375 | 1.8 | 1.63 | **1** |
+| 2026 | 24 | 74 | 413,586 | 15.7 | 1.28 | 0 |
+| **total** | **152** | **2,190** | **21,805,609** | **722.5** | | **1** |
 
-- **The contract holds.** Every row falls in the chunk its number claims;
-  every declared row count, column length and span agrees; chunk lists are
-  sorted. **0 failures**, both seasons.
-- **Closed chunks are byte-identical across rebuilds**, so a saved link keeps
-  working. Only the open week churns.
-- **Both tiers agree** in both seasons: every shard record has an overview and
-  every plottable record has a shard entry.
-- **All three vendors work** — Oshen at 120 s and 300 s, Chance at 60 s,
-  Saildrone at 60 s.
-- **The window cap fires on the case it was written for.** The whole of
-  `sd1065_tpos_2021`, 63 weeks, asks for nothing and says why. Nothing in
-  2026 could ever have reached it.
-- **The failure paths degrade honestly** — a missing chunk and a missing
-  shard both 404 and are handled.
+What "0 failures" means: every row falls in the chunk its number claims,
+every declared row count and column length agrees, every span and chunk list
+is right, and closed chunks come back byte-identical across a rebuild.
 
-### The two encodings, and which to trust
+**The archive is 722 MB, not the 0.5 GB I last estimated** — and the original
+794 MB projection, made before any shard existed, was the closest of the
+three. The largest shard is 2019 at 164 MB, six times under the per-repository
+limit. Estimating from the catalog is not to be trusted: it was out by 2× on
+2018 and 2019, because B/value ranges from 0.77 to 1.63 across seasons and
+`span / cadence` is a poor count of rows.
 
-| | 2026 | 2021 |
-|---|---|---|
-| what it is | short Oshen runs, many small files | long Saildrone runs |
-| gzipped | **1.28 B/value** | **0.77 B/value** |
+### The one failure, and what it turned up
 
-The big seasons are all the second kind, so **0.77 is the number to plan
-with** and 1.28 was pessimism from a season unlike the rest. It puts the whole
-archive near **0.5 GB**, against a 1 GB limit that applies per repository
-anyway. The largest season is now measured, not estimated, at 118 MB.
+`oshenPC1_hurricane_2025`: index 31,983 rows, chunks 26,490. **5,493 of its
+rows carry no timestamp**, which is also why ERDDAP publishes an empty
+`maxTime` for it. The chunker was right to drop them; the index reported the
+count that went in. Fixed, and the shard needs rebuilding — it is the only one
+that does.
 
-### A correction to what this file said last
-
-It said the QC-resolution worry was **retired** — that the checks run before
-the decimation, so the note reading "coarser than the vehicle reported" was
-about to become misleading. That was wrong, and reading 2021 is what showed
-it: the page claimed `sd1065_tpos_2021` was checked at native rate while its
-own series file recorded a 300 s fetch against a 60 s vehicle.
-
-`coverageNote` was comparing the fetch resolution against the spacing of the
-rows it had been handed — the same number by construction on a decimated
-fetch — so its warning branch **could never fire**, and **46 of 152 records**
-told a reader their one-minute artifacts had been looked for. Fixed; in
-`CLAUDE.md` §7, and `test:qc` now covers the function, which nothing had.
-
-**The 46 corrected notes appear at the next site rebuild**, since the note is
-baked into each series file.
+The same sweep found **24 single-vehicle records whose clock runs backwards**,
+`sd1034_ecmwf_ags_2021` by 1,016 of its 123,360 rows. No check looked at the
+order of the clock, while the map was already lifting its pen at every one of
+those steps. `timeorder` is now the tenth check.
 
 ---
 
-## The replication
+## What is left
 
-Eight seasons: 2017–2020, 2022–2025. For each:
-
-1. `gh repo create oceansensing/usv-data-<year> --public`
-2. push `README.md` and `.github/workflows/publish.yml` — the 2021 pair with
-   the year changed; **no schedule**, `workflow_dispatch` only
-3. `gh api -X POST repos/oceansensing/usv-data-<year>/pages -f build_type=workflow`,
-   then `-X PUT … -F https_enforced=true`
-4. `gh workflow run publish.yml --repo oceansensing/usv-data-<year>`
-5. validate: fetch every chunk, check the contract, check tier agreement
-
-Sizes to expect, from 2021 measured and scaled:
-
-| season | ~size | | season | ~size |
-|---|---|---|---|---|
-| 2024 | ~88 MB | | 2019 | ~74 MB |
-| 2023 | ~72 MB | | 2022 | ~46 MB |
-| 2018 | ~44 MB | | 2017 | ~20 MB |
-| 2020 | ~10 MB | | 2025 | ~1 MB |
-
-**Build time is not the problem it was feared to be.** 2021 — the largest
-season, 4.4 M rows at native rate — took **7m12s**, against a model that said
-42 minutes. The model was fitted to cold-fetch measurements and PMEL's cache
-was warmer than that; either way every remaining season is smaller. The
-120-minute timeout stays anyway, because it costs nothing unused and a
-timeout burns the run *and* saves no cache.
-
-Nothing forces the eight to be serial, but PMEL takes **one request at a
-time** across all of them — the 408 that cost a dataset earlier in this
-project. Run them one at a time.
-
----
-
-## Things known to be wrong, carried forward
-
-- **`chanceMC29_NEFSC_nantucket_2026_fullres`** cannot be fetched at all —
-  one record of 153. It costs a bounded fifteen minutes of each build and its
-  page says so and links to the ERDDAP.
-- **Thirteen records interleave several vehicles**, and 2021's
-  `all_swfsc_2021` is one: it is the only record in that season whose time
-  steps backwards, 30 chunks of it, which is the interleaving showing through
-  rather than a fault in the data. Tracks are already suppressed; the series
-  still step between vehicles row by row. Splitting them needs `distinct()`
-  on the `trajectory` column.
-- **A shard's `cadenceSeconds` is a median over a record that may not have
-  one cadence** — 11 of 15 Oshen chunks disagree with their own record's
-  figure. 2021 is all Saildrone and has no drift at all. Nothing reads the
-  field. Make it honest or drop it before something starts to.
-- **`orderByClosest` alignment** is assumed to hold for every sensor. It was
-  measured on the Saildrone SBE37 at five minutes; a sensor on some other
-  period would be sampled between its rows by every rung of the ladder with
-  nothing saying so. Less pressing now that the detail tier is unsampled.
-- **A record's index entry is rewritten on every build** — `fetched` is
-  stamped from the clock — so `season.json` never comes back byte-identical
-  even where nothing moved, against the intent of the comment beside it. It
-  costs nothing; it makes "what changed in this build" harder to read.
+1. **Rebuild `usv-data-2025`** — the only shard with a wrong index. One
+   `workflow_dispatch`.
+2. **The site's next build** picks up `timeorder` and the corrected row
+   counts; the detail cache format bump means the next 2026 shard build
+   refetches once.
+3. **Thirteen records interleave several vehicles.** Tracks are suppressed and
+   both the map and the series say why, but the series still step between
+   vehicles row by row. Splitting them needs `distinct()` on the `trajectory`
+   column. `saildrone_arctic_2018` is the only record of the 2018 Arctic met
+   and ocean data and is one of them.
+4. **`chanceMC29_NEFSC_nantucket_2026_fullres`** cannot be fetched at all —
+   one record of 153. It costs a bounded fifteen minutes of each build; its
+   page says so and links to the ERDDAP.
+5. **A shard's `cadenceSeconds` is a median over a record that may not have
+   one cadence** — the Oshens and the ADCP records disagree with their own
+   figure. Nothing reads the field. Make it honest or drop it.
+6. **`orderByClosest` alignment** is assumed to hold for every sensor. It was
+   measured on the Saildrone SBE37 at five minutes. Less pressing now that the
+   detail tier is unsampled.
+7. **A record's index entry is rewritten on every build** — `fetched` is
+   stamped from the clock — so `season.json` never comes back byte-identical
+   even where nothing moved.

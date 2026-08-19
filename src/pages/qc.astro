@@ -1,6 +1,6 @@
 ---
 /**
- * Quality: what the nine checks look for, and every record they found
+ * Quality: what the ten checks look for, and every record they found
  * something in.
  *
  * The explanation comes first and the digest second, deliberately. Every
@@ -61,6 +61,20 @@ const CHECKS = [
     not: 'Not sparseness. A Saildrone\'s CTD reports every five minutes into a '
       + 'one-minute record — 80 % of rows empty, and a perfectly healthy '
       + 'instrument.',
+  },
+  {
+    key: 'timeorder',
+    what: 'The clock runs backwards between consecutive rows.',
+    how: 'Every consecutive pair is compared. A record substantially out of '
+      + 'order is reported more severely than one with a stray row: one in a '
+      + 'thousand is the line.',
+    not: 'Not wrong values, and not a reason to distrust a mean or a range — '
+      + 'those do not depend on the order the rows arrive in. It matters for '
+      + 'anything that assumes the clock only moves forward: a track through '
+      + 'consecutive fixes, a difference between neighbours, a rate, a '
+      + 'spectrum. It is also not reported for a record that interleaves '
+      + 'several vehicles, where stepping backwards is the shape of the table '
+      + 'rather than a fault.',
   },
   {
     key: 'cadence',
@@ -130,7 +144,7 @@ const CHECKS = [
       </p>
     </div>
 
-    <h2 class="figure-title section">The nine checks</h2>
+    <h2 class="figure-title section">The ten checks</h2>
     <ul class="checks">
       {CHECKS.map((c) => (
         <li>

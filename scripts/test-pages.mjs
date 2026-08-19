@@ -244,7 +244,13 @@ section('what the pages promise about the data');
      onto every element it renders, so a literal `<strong>` never appears in
      the built HTML. */
   const nots = (qc.text.match(/<strong[^>]*>Not:<\/strong>/g) ?? []).length;
-  ok('and every check says what it is not', nots >= 9, `${nots} of 9`);
+  /* Counted against the package rather than a number written here, so adding
+     a check and forgetting to describe it fails instead of passing quietly. */
+  const checks = fs.readFileSync('packages/usv-qc/types.ts', 'utf8');
+  const union = /export type Check =([\s\S]*?);/.exec(checks)?.[1] ?? '';
+  const named = (union.match(/'[a-z]+'/g) ?? []).length;
+  ok('the quality page describes every check the package defines',
+    nots >= named, `${nots} described, ${named} defined`);
 }
 
 /* ------------------------------------------------------------------------ */

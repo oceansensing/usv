@@ -44,6 +44,7 @@ the robust scale moves by under 15 %.
 | `range` | outside what the quantity can physically be — not outside what is usual |
 | `dropout` | a sensor missing where the vehicle is not. Dead and intermittent reported separately |
 | `cadence` | the reporting interval changed part-way through |
+| `timeorder` | the clock runs **backwards** between consecutive rows |
 | `position` | missing fixes, the null island, and jumps no USV could make |
 | `metadata` | units missing, damaged, or contradicted by the values |
 | `silent` | the record has stopped growing |
@@ -145,3 +146,19 @@ alternative is a JSON file larger than the data it annotates.
 `rank()` is a **stable** total order — severity, then time, then check, then
 column. The report is written to a file that is diffed between builds, and an
 unstable sort would show every dataset as changed every night.
+
+### `timeorder` exists because the map was already reacting to it
+
+Nothing looked at the order of the clock. `cadence` averages over 500-row
+windows and discards any interval that is not positive, so a shuffled record
+reads to it as perfectly regular — and **24 single-vehicle records in the
+archive step backwards**, `sd1034_ecmwf_ags_2021` by 1,016 of its 123,360
+rows. Meanwhile `reachable` on the site lifts the map's pen at every one of
+those steps. A quality report silent about the thing the map is visibly
+reacting to is the site contradicting itself on two screens.
+
+It is about **order, not values**: a mean, a range and a histogram do not care
+what order they were handed. A track, a difference, a rate and a spectrum do.
+
+Not run on a record that interleaves several vehicles, where backwards is the
+shape of the table — eleven records — and where the page already says so.

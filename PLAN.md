@@ -104,7 +104,7 @@ which is what the glider site does not have and most of what this one is.
 |---|---|
 | `packages/erddap-pmel` | the PMEL client. Node only — PMEL sends no CORS header |
 | `packages/usv-vars` | **429 vendor column names onto 63 canonical quantities**, 97.9 % of dataset-columns resolved, plus units and the seven derived quantities |
-| `packages/usv-qc` | the nine checks, because the archive publishes none |
+| `packages/usv-qc` | the ten checks, because the archive publishes none |
 | `packages/plot` | the SVG plot engine, vendored from `gliders` |
 | `packages/teos10` | seawater properties, vendored from `gliders` |
 
@@ -138,7 +138,7 @@ points and rounds each column to what its instrument resolves.
 - **`/campaign/?id=<slug>`** — the cohort. One polyline per vehicle, a roster
   that is the map's legend, and **a Saildrone and an Oshen on one axis** —
   which is the whole point of the canonicalization layer.
-- **`/qc/`** — what the nine checks look for, what each one is *not*, and
+- **`/qc/`** — what the ten checks look for, what each one is *not*, and
   every record they found something in.
 - **`/about/`** — the sources, what was converted, what was computed here,
   and what the checks do not claim.
@@ -173,7 +173,7 @@ matters before it is replicated nine times.
 
 ### The gates
 
-**833 offline checks** in nine suites, chained by `npm run verify`. Nothing
+**863 offline checks** in nine suites, chained by `npm run verify`. Nothing
 in it touches the network, so it cannot fail because PMEL is having a bad
 morning — which is exactly when you least want the deploy blocked.
 

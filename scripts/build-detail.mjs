@@ -44,9 +44,11 @@ import {
   ErddapError, fetchTable, medianCadence, PMEL,
 } from '../packages/erddap-pmel/index.ts';
 import {
-  applyConversion, chunkOf, chunkSpan, resolveDataset, seasonOf, shardFor,
+  applyConversion, CHUNK_SECONDS, chunkSpan, resolveDataset, seasonOf, shardFor,
 } from '../packages/usv-vars/index.ts';
-import { Cache, infoCache, human, roundColumn, roundTime, writeJson } from './lib/bake.mjs';
+import {
+  Cache, groupByChunk, human, infoCache, roundColumn, roundTime, writeJson,
+} from './lib/bake.mjs';
 
 const root = (p) => fileURLToPath(new URL(`../${p}`, import.meta.url));
 const CATALOG = root('public/data/catalog.json');
@@ -113,8 +115,13 @@ fs.mkdirSync(OUT_DIR, { recursive: true });
  * rounding, the chunk boundaries, the index fields. A closed season is built
  * once, so a change that does not bump this reaches nothing at all. See
  * `Cache`.
+ *
+ * 2 — the index reported the rows *fetched* rather than the rows written, so
+ *     `oshenPC1_hurricane_2025` promised 31,983 samples for a shard holding
+ *     26,490; 5,493 of its rows carry no timestamp and belong to no week.
+ * 1 — the first published shape.
  */
-const CACHE_FORMAT = 1;
+const CACHE_FORMAT = 2;
 
 const cache = new Cache(CACHE, CACHE_FORMAT);
 
@@ -231,18 +238,11 @@ async function buildOne(d) {
     values.set(seriesKey(r, resolved), { column: merged, resolved: r });
   }
 
-  /* Rows are grouped by the chunk their timestamp falls in. Grouped rather
-     than sliced, because a record is not guaranteed to be sorted and a slice
-     would silently drop whatever is out of order — three Oshen records step
-     backwards in time between consecutive rows. */
-  const groups = new Map();
-  for (let i = 0; i < rows; i++) {
-    const t = time[i];
-    if (!Number.isFinite(t)) continue;
-    const c = chunkOf(t);
-    let g = groups.get(c);
-    if (!g) groups.set(c, (g = []));
-    g.push(i);
+  /* See `groupByChunk`: a row with no timestamp belongs to no week and is
+     not written, so `placed` — not `rows` — is what this record contributes. */
+  const { groups, placed, dropped } = groupByChunk(time, CHUNK_SECONDS);
+  if (dropped) {
+    console.log(`    ${d.id}: ${dropped} of ${rows} rows have no timestamp and are not chunked`);
   }
 
   const chunks = {};
@@ -271,7 +271,10 @@ async function buildOne(d) {
       id: d.id,
       vehicle: d.vehicle,
       campaign: d.campaign,
-      rows,
+      /* What the chunks actually hold. Reporting the fetched count instead
+         made the index claim 31,983 samples for a record whose shard held
+         26,490, and the vehicle page prints this number as a promise. */
+      rows: placed,
       cadenceSeconds: cadence,
       /* Sorted, so a rebuild that changed nothing writes a byte-identical
          index and the diff between builds is only what moved. */

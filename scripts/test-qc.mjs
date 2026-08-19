@@ -21,7 +21,8 @@ import { parseJsonlCsv } from '../packages/erddap-pmel/index.ts';
 import {
   cadence, coverageNote, directionConvention, dropout, gaps, haversine, MAX_MARKS,
   mergeSimultaneousDropouts, PLAUSIBLE, position, range, rank,
-  reportingInterval, robustScale, sample, silent, spikes, stuck, tally, worst,
+  reportingInterval, robustScale, sample, silent, spikes, stuck, tally,
+  timeOrder, worst,
 } from '../packages/usv-qc/index.ts';
 
 /** A clean series: `n` samples every `dt` seconds from `t0`. */
@@ -579,6 +580,75 @@ section('the note that says what could have been found');
 
   ok('an unmeasurable cadence says so',
     /could not be measured/.test(coverageNote(report(300, NaN))));
+}
+
+/* ------------------------------------------------------------------------ */
+section('a clock that runs backwards');
+
+/*
+ * Nothing looked at the order of the clock until this. `cadence` averages over
+ * 500-row windows and discards any interval that is not positive, so a record
+ * whose rows are shuffled reads to it as perfectly regular — and 24
+ * single-vehicle records in the archive step backwards, `sd1034_ecmwf_ags_2021`
+ * by 1,016 of its 123,360 rows. The map was already lifting its pen at every
+ * one of them.
+ */
+{
+  check('an ordinary record has nothing to report', timeOrder(clock(500)).length, 0);
+  check('nor does an empty one', timeOrder(Float64Array.from([])).length, 0);
+  check('nor a single row', timeOrder(Float64Array.from([1_786_665_600])).length, 0);
+
+  /* A repeated timestamp is not backwards — two readings of one moment. */
+  const repeat = Float64Array.from([100, 160, 160, 220]);
+  check('a repeated instant is not a step backwards', timeOrder(repeat).length, 0);
+
+  const one = Float64Array.from([100, 160, 130, 220, 280]);
+  const f = timeOrder(one)[0];
+  ok('one row out of order is reported', Boolean(f));
+  check('  counted exactly', f.count, 1);
+  ok('  and it says values are not what is wrong', /order/i.test(f.detail));
+  ok('  naming what still holds', /mean|range|histogram/i.test(f.detail));
+
+  /** A record of `n` rows a minute apart, with `swaps` adjacent pairs
+      exchanged. Each swap is exactly one step backwards — moving a *block*
+      of rows is not, which is worth saying because the first version of this
+      test did that and produced one. */
+  const shuffle = (n, swaps) => {
+    const t = new Float64Array(n);
+    for (let i = 0; i < n; i++) t[i] = 1_786_665_600 + i * 60;
+    for (let k = 0; k < swaps; k++) {
+      const i = 100 + k * 2;
+      [t[i], t[i + 1]] = [t[i + 1], t[i]];
+    }
+    return t;
+  };
+
+  check('one swap is one step backwards', timeOrder(shuffle(10_000, 1))[0].count, 1);
+  check('and fifty swaps are fifty', timeOrder(shuffle(10_000, 50))[0].count, 50);
+
+  /* One in ten thousand is a stray row: a curiosity. */
+  check('a stray row in ten thousand stays low',
+    timeOrder(shuffle(10_000, 1))[0].severity, 'low');
+  /* Fifty in ten thousand is half a percent — the record is a different
+     object from the ordered one every downstream tool assumes it has.
+     `sd1034_ecmwf_ags_2021` is 1,016 of 123,360, which is 0.8 %. */
+  const g = timeOrder(shuffle(10_000, 50))[0];
+  check('half a percent out of order is medium', g.severity, 'medium');
+  ok('  and it says how far back the clock goes', /by up to/.test(g.summary), g.summary);
+
+  /* A short record with one bad row is substantially disordered, and the
+     fraction says so rather than the count. */
+  check('one row in five is medium, not low', f.severity, 'medium');
+
+  /* Marks are capped like every other check; the count stays exact. */
+  const h = timeOrder(shuffle(4_000, 900))[0];
+  ok('marks are capped', h.marks.length <= MAX_MARKS, `${h.marks.length}`);
+  ok('and the count is not', h.count > h.marks.length || h.count === h.marks.length,
+    `${h.count} counted`);
+
+  /* A row with no timestamp is skipped rather than read as a step back. */
+  const holed = Float64Array.from([100, NaN, 160, NaN, 220]);
+  check('a missing timestamp is not a step backwards', timeOrder(holed).length, 0);
 }
 
 done();

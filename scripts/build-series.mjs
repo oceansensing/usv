@@ -134,6 +134,8 @@ fs.mkdirSync(OUT_DIR, { recursive: true });
  * the fields of the file. An archived record's `maxTime` never moves again,
  * so without a bump the fix reaches only the vehicles still reporting.
  *
+ * 3 — a `timeorder` check, which nothing had: 24 single-vehicle records step
+ *     backwards in time and no check looked at the order of the clock.
  * 2 — `coverageNote` compared the fetch resolution against the spacing of the
  *     rows it was handed rather than the vehicle's own rate, so 46 records
  *     said their one-minute artifacts had been looked for when the checks ran
@@ -141,7 +143,7 @@ fs.mkdirSync(OUT_DIR, { recursive: true });
  *     `sampledCadenceSeconds`.
  * 1 — the first published shape.
  */
-const CACHE_FORMAT = 2;
+const CACHE_FORMAT = 3;
 
 const cache = new Cache(CACHE, CACHE_FORMAT);
 
@@ -355,6 +357,7 @@ async function buildOne(d) {
     cadenceSeconds: seriesCadence,
     nativeCadenceSeconds: nativeCadence,
     fetched,
+    multiVehicle: Boolean(d.multiVehicle),
   });
 
   /* 7. Decimate and round. */

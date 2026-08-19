@@ -11,7 +11,7 @@ import type { ResolvedDataset } from '@c4po/usv-vars';
 import type { Check, Finding, Report } from './types.ts';
 import { rank } from './types.ts';
 import {
-  cadence, dropout, gaps, range, reportingInterval, spikes, stuck,
+  cadence, timeOrder, dropout, gaps, range, reportingInterval, spikes, stuck,
 } from './series.ts';
 import { directionConvention } from './series.ts';
 import { position, silent } from './position.ts';
@@ -52,6 +52,9 @@ export interface RunInput {
   nativeCadenceSeconds: number;
   /** Epoch seconds this build fetched the record. */
   fetched: number;
+  /** True where the record's rows come from several vehicles interleaved. A
+      few checks are meaningless on one — see `timeOrder`. */
+  multiVehicle?: boolean;
 }
 
 /**
@@ -84,6 +87,7 @@ export function run(input: RunInput): Report {
   const {
     info, resolved, vendor, time, columns, lat, lon,
     resolutionSeconds, cadenceSeconds, nativeCadenceSeconds, fetched,
+    multiVehicle = false,
   } = input;
 
   const findings: Finding[] = [];
@@ -98,6 +102,10 @@ export function run(input: RunInput): Report {
   /* -- the record as a whole ------------------------------------------- */
   findings.push(...gaps(time, cadenceSeconds));
   findings.push(...cadence(time));
+  /* **Not on an interleaved record.** Several vehicles reporting into one
+     table step backwards constantly and correctly; the record already
+     carries its own explanation and its track is already suppressed. */
+  if (!multiVehicle) findings.push(...timeOrder(time));
   findings.push(...position(time, lat, lon));
   if (time.length) findings.push(...silent(time[time.length - 1], fetched));
 
@@ -218,7 +226,7 @@ export function mergeSimultaneousDropouts(findings: readonly Finding[]): Finding
 export function tally(findings: readonly Finding[]): Record<Check, number> {
   const out = {
     gap: 0, spike: 0, stuck: 0, range: 0, dropout: 0, cadence: 0,
-    position: 0, metadata: 0, silent: 0,
+    position: 0, metadata: 0, silent: 0, timeorder: 0,
   };
   for (const f of findings) out[f.check]++;
   return out;

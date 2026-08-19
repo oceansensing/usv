@@ -38,7 +38,7 @@ export const SEVERITY_RANK: Record<Severity, number> = {
 /** The checks, named. Used as a stable key in the URL and the report. */
 export type Check =
   | 'gap' | 'spike' | 'stuck' | 'range' | 'dropout' | 'cadence'
-  | 'position' | 'metadata' | 'silent';
+  | 'position' | 'metadata' | 'silent' | 'timeorder';
 
 export interface Finding {
   check: Check;

@@ -651,3 +651,24 @@ Each was written, run, and found to be wrong. Each now has a gate.
 - **"40 of 40 tracks · 112 more match and are not drawn"** reads as *all of
   them* and then contradicts itself in the same breath. The denominator is now
   what matched, not what was picked.
+- **The shard index promised samples the shard did not hold.**
+  `oshenPC1_hurricane_2025` is 31,983 rows of which **5,493 carry no timestamp
+  at all** — which is also why ERDDAP publishes an empty `maxTime` for it. A
+  row with no time belongs to no week, so the chunker correctly drops it; the
+  index reported the count that went *in*, and the vehicle page prints that
+  number as an offer. Found by sweeping every published chunk against the
+  index, not by any test. *Gate:* `groupByChunk` in `bake.mjs` returns
+  `placed` and `dropped`, the caller reports `placed`, and `test:build`
+  asserts the two account for every row.
+- **Nothing looked at the order of the clock.** `cadence` averages over
+  500-row windows and discards any interval that is not positive, so a record
+  whose rows are shuffled reads to it as perfectly regular. **24
+  single-vehicle records in the archive step backwards in time** — most by one
+  or two rows, `sd1034_ecmwf_ags_2021` by **1,016 of its 123,360**. Meanwhile
+  `reachable` was already lifting the map's pen at every one of those steps,
+  so the site was drawing broken tracks for a reason its own quality report
+  did not mention. `timeorder` is the tenth check. It is not run on the eleven
+  records that interleave several vehicles, where stepping backwards is the
+  shape of the table. *Gate:* `test:qc`, and `test:pages` now counts the
+  checks the quality page describes against the ones `types.ts` defines rather
+  than against a number written in the test.

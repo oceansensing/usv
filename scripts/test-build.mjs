@@ -22,7 +22,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { check, done, ok, section } from './lib/check.mjs';
-import { Cache, INFO_FORMAT, infoCache } from './lib/bake.mjs';
+import { Cache, groupByChunk, INFO_FORMAT, infoCache } from './lib/bake.mjs';
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'usv-cache-'));
 
@@ -115,6 +115,51 @@ section('one path, and no script spells it out for itself');
     `v${INFO_FORMAT}`);
   ok('a record with no end still keys somewhere',
     typeof infoCache().path('x', Cache.stamp({ end: NaN })) === 'string');
+}
+
+/* ------------------------------------------------------------------------ */
+section('a row with no timestamp belongs to no week');
+
+/*
+ * `oshenPC1_hurricane_2025` is 31,983 rows of which **5,493 carry no time at
+ * all** — which is also why ERDDAP publishes an empty `maxTime` for it. Such a
+ * row cannot be placed in a chunk, and dropping it is the only correct thing
+ * to do; the bug was reporting the count that went *in*. The shard held
+ * 26,490 samples and its index promised 31,983, and the vehicle page prints
+ * that number as an offer.
+ */
+{
+  const WEEK = 7 * 86400;
+  const t0 = 2914 * WEEK;
+
+  const clean = Float64Array.from([t0, t0 + 60, t0 + 120]);
+  const a = groupByChunk(clean, WEEK);
+  check('every timed row is placed', a.placed, 3);
+  check('and none is dropped', a.dropped, 0);
+  check('all in the one week', a.groups.get(2914).length, 3);
+
+  const holed = Float64Array.from([t0, NaN, t0 + 120, NaN, NaN]);
+  const b = groupByChunk(holed, WEEK);
+  check('a row with no time is not placed', b.placed, 2);
+  check('and is counted as dropped', b.dropped, 3);
+  ok('placed and dropped account for every row', b.placed + b.dropped === holed.length);
+
+  /* The count the index must report is what came out, never what went in. */
+  const held = [...b.groups.values()].reduce((n, g) => n + g.length, 0);
+  check('the rows the chunks hold equal the placed count', held, b.placed);
+  ok('which is not the row count that went in', b.placed !== holed.length,
+    `${b.placed} placed of ${holed.length}`);
+
+  /* Out-of-order rows are grouped, not sliced: Oshen records and the 2020
+     Arctic Saildrones both step backwards between consecutive rows. */
+  const backwards = Float64Array.from([t0 + WEEK, t0, t0 + WEEK + 60]);
+  const c = groupByChunk(backwards, WEEK);
+  check('a backwards step keeps both weeks', c.groups.size, 2);
+  check('  the earlier week has its row', c.groups.get(2914).length, 1);
+  check('  and the later one keeps both of its own', c.groups.get(2915).length, 2);
+  check('nothing is lost to the disorder', c.placed, 3);
+
+  check('nothing in is nothing out', groupByChunk(Float64Array.from([]), WEEK).placed, 0);
 }
 
 fs.rmSync(tmp, { recursive: true, force: true });

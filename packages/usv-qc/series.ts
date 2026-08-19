@@ -615,6 +615,69 @@ export function cadence(
   }];
 }
 
+/**
+ * Time that runs backwards between consecutive rows.
+ *
+ * **Nothing else here looks at the order of the clock.** `cadence` averages
+ * over 500-row windows and discards any interval that is not positive, so a
+ * record whose rows are shuffled reads to it as perfectly regular. Measured
+ * across the published archive, **24 single-vehicle records step backwards**
+ * — most by one or two rows, and `sd1034_ecmwf_ags_2021` by 1,016 of its
+ * 123,360.
+ *
+ * The site already *acts* on this: `reachable` lifts the pen at a backward
+ * step, so those tracks are drawn in pieces. A quality report that stays
+ * silent about the very thing the map is reacting to is the site
+ * contradicting itself on two screens.
+ *
+ * **This is about the record's order, not its values.** A mean, a range and a
+ * histogram are unaffected — they do not care what order they are handed. A
+ * track, a difference, a rate and a spectrum all do.
+ *
+ * Not the same as an interleaved record: several vehicles in one table step
+ * backwards constantly and legitimately, which is why `multiVehicle` records
+ * carry their own explanation and are excluded here by the caller.
+ */
+export function timeOrder(time: Float64Array): Finding[] {
+  const at: number[] = [];
+  let worst = 0;
+  for (let i = 1; i < time.length; i++) {
+    const a = time[i - 1];
+    const b = time[i];
+    if (!Number.isFinite(a) || !Number.isFinite(b)) continue;
+    if (b < a) {
+      at.push(b);
+      worst = Math.max(worst, a - b);
+    }
+  }
+  if (!at.length) return [];
+
+  /* A stray row out of place is a curiosity; a record that is substantially
+     unordered is a different object from the one every downstream tool
+     assumes it has. One in a thousand is the line. */
+  const fraction = at.length / time.length;
+  const severity: Severity = fraction > 0.001 ? 'medium' : 'low';
+
+  return [{
+    check: 'timeorder',
+    severity,
+    summary: `${at.length.toLocaleString()} row${at.length === 1 ? '' : 's'} `
+      + `report${at.length === 1 ? 's' : ''} a time earlier than the row before`
+      + (worst >= 60 ? `, by up to ${humanDuration(worst)}` : ''),
+    detail: 'Only the order is wrong; the values are whatever the instruments '
+      + 'read. A mean, a range or a histogram over this record is unaffected — '
+      + 'they do not depend on the order the rows arrive in. Anything that '
+      + 'assumes the clock only moves forward does: a track drawn through '
+      + 'consecutive fixes, a difference between neighbours, a rate, a '
+      + 'spectrum. The map on this site already lifts its pen at each of these '
+      + 'steps rather than drawing back across the record.',
+    start: Math.min(...at),
+    end: Math.max(...at),
+    count: at.length,
+    marks: sample(at, MAX_MARKS),
+  }];
+}
+
 /* ---------------------------------------------------------------- bits -- */
 
 /** Thin a list of event times down to a cap, keeping the ends and spreading
