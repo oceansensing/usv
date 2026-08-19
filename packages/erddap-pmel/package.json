@@ -1,0 +1,9 @@
+{
+  "name": "@c4po/erddap-pmel",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Reading USV records off the NOAA PMEL ERDDAP (Node only — PMEL sends no CORS header)",
+  "main": "index.ts",
+  "types": "index.ts"
+}

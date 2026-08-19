@@ -1,0 +1,39 @@
+{
+  "table": {
+    "columnNames": ["Row Type", "Variable Name", "Attribute Name", "Data Type", "Value"],
+    "columnTypes": ["String", "String", "String", "String", "String"],
+    "rows": [
+      ["attribute", "NC_GLOBAL", "cdm_data_type", "String", "Other"],
+      ["attribute", "NC_GLOBAL", "Conventions", "String", "COARDS, CF-1.10, ACDD-1.3"],
+      ["attribute", "NC_GLOBAL", "creator_email", "String", "support@chancemaritime.com, nefsc.erddap@noaa.gov"],
+      ["attribute", "NC_GLOBAL", "creator_name", "String", "Chance Maritime Technologies, NOAA NEFSC"],
+      ["attribute", "NC_GLOBAL", "creator_url", "String", "chancemaritime.com, fisheries.noaa.gov/about/northeast-fisheries-science-center"],
+      ["attribute", "NC_GLOBAL", "infoUrl", "String", "chancemaritime.com, fisheries.noaa.gov/about/northeast-fisheries-science-center"],
+      ["attribute", "NC_GLOBAL", "institution", "String", "Chance Maritime Technologies, NOAA NEFSC"],
+      ["attribute", "NC_GLOBAL", "keywords", "String", "data, file, identifier, lastModified, modified, name, size, time"],
+      ["attribute", "NC_GLOBAL", "license", "String", "These data were produced by NOAA and are not subject to copyright protection in the United States. NOAA waives any potential copyright and related rights in these data worldwide through the Creative Commons Zero 1.0 Universal Public Domain Dedication (CC0-1.0)."],
+      ["attribute", "NC_GLOBAL", "sourceUrl", "String", "(local files)"],
+      ["attribute", "NC_GLOBAL", "subsetVariables", "String", "fileType"],
+      ["attribute", "NC_GLOBAL", "summary", "String", "The purpose of this survey is to characterize oceanographic conditions to inform ecosystem structure and protected species habitat near Nantucket Shoals in January 2026 using active acoustics and vertical casts of CTDs and particle imaging."],
+      ["attribute", "NC_GLOBAL", "title", "String", "NOAA NEFSC Nantucket Shoals USV Survey 2026 Chance Maritime MC29 CTD Casts"],
+      ["variable", "url", "", "String", ""],
+      ["attribute", "url", "ioos_category", "String", "Identifier"],
+      ["attribute", "url", "long_name", "String", "URL"],
+      ["variable", "name", "", "String", ""],
+      ["attribute", "name", "ioos_category", "String", "Identifier"],
+      ["attribute", "name", "long_name", "String", "File Name"],
+      ["variable", "lastModified", "", "double", ""],
+      ["attribute", "lastModified", "ioos_category", "String", "Time"],
+      ["attribute", "lastModified", "long_name", "String", "Last Modified"],
+      ["attribute", "lastModified", "time_origin", "String", "01-JAN-1970 00:00:00"],
+      ["attribute", "lastModified", "units", "String", "seconds since 1970-01-01T00:00:00Z"],
+      ["variable", "size", "", "double", ""],
+      ["attribute", "size", "ioos_category", "String", "Other"],
+      ["attribute", "size", "long_name", "String", "Size"],
+      ["attribute", "size", "units", "String", "bytes"],
+      ["variable", "fileType", "", "String", ""],
+      ["attribute", "fileType", "ioos_category", "String", "Identifier"],
+      ["attribute", "fileType", "long_name", "String", "File Type"]
+    ]
+  }
+}
