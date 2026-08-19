@@ -216,6 +216,15 @@ section('what the pages promise about the data');
   ok('and says the site is not live',
     /not live|fetched when the site was built|cannot read it/i.test(index.text));
 
+  /* **A snapshot cannot say "reporting now".** The data is rebuilt every six
+     hours, so a perfectly healthy vehicle is up to six hours stale by the end
+     of a cycle; asked against the wall clock the live count falls to zero
+     before every rebuild. Measured 1.4 h after one build, it had already
+     dropped from 21 to 2 with nothing at sea having changed. */
+  ok('the fleet page does not claim to know what is reporting now',
+    !/reporting now/i.test(index.text), 'says "reporting when fetched"');
+  ok('and says when it looked instead', /when fetched/i.test(index.text));
+
   const about = docs.find((d) => d.file === path.join(DIST, 'about', 'index.html'));
   ok('the about page explains the CORS decision',
     /Access-Control-Allow-Origin/.test(about.text));

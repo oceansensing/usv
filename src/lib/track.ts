@@ -21,6 +21,7 @@ import L from 'leaflet';
    than by each page that shows one, so a new page cannot forget it. */
 import 'leaflet/dist/leaflet.css';
 import { robustRange, sample } from '@c4po/plot';
+import { reachable, typicalGap } from './reachable.ts';
 
 export interface TrackOptions {
   /** Colormap for the time axis. */
@@ -242,26 +243,49 @@ export function makeTrack(element: HTMLElement, options: TrackOptions = {}): Tra
     const stride = Math.max(1, Math.floor((points.length - 1) / want));
     const cmap = colour?.colormap ?? next.colormap ?? options.map ?? 'cmo.thermal';
 
+    /* **The pen lifts where the vehicle could not have sailed.** Three 2024
+       Saildrones were recovered in the Atlantic and their records continue
+       with dock telemetry from Alameda, so a line through every fix runs
+       4,000 km across the United States. Judged against the *fixes*, before
+       they are grouped into coloured segments, so a break inside a segment
+       cuts it rather than being smoothed over. */
+    const typical = typicalGap(points);
+    const broken = (k: number): boolean =>
+      k > 0 && !reachable(points[k - 1], points[k], typical);
+
     const all: L.LatLngExpression[] = [];
     for (let i = 0; i + stride < points.length; i += stride) {
       const a = points[i];
       const b = points[Math.min(i + stride, points.length - 1)];
       const seg: L.LatLngExpression[] = [];
       for (let k = i; k <= Math.min(i + stride, points.length - 1); k++) {
+        if (broken(k) && seg.length) {
+          /* Close the run here and start the next one at this fix. */
+          all.push(...seg);
+          drawSegment(seg, a, b);
+          seg.length = 0;
+        }
         seg.push([points[k].lat, points[k].lon]);
       }
+      if (seg.length < 2) continue;
       all.push(...seg);
       /* A segment whose value is missing is drawn muted rather than dropped:
-         the track is where the glider went, and a gap in one sensor is not a
-         gap in the path. */
+         the track is where the vehicle went, and a gap in one sensor is not
+         a gap in the path. */
+      drawSegment(seg, a, b);
+    }
+
+    function drawSegment(seg: L.LatLngExpression[], a: Point, b: Point): void {
+      if (seg.length < 2) return;
       const mid = [a.v, b.v].filter(Number.isFinite);
       const t = mid.length
         ? Math.min(1, Math.max(0,
             ((mid.reduce((x, y) => x + y, 0) / mid.length) - lo) / (hi - lo)))
         : NaN;
       const colour = Number.isFinite(t) ? sample(cmap, t) : null;
-      segments.push({ points: seg as Array<[number, number]>, colour });
-      L.polyline(seg, {
+      const copy = [...seg];
+      segments.push({ points: copy as Array<[number, number]>, colour });
+      L.polyline(copy, {
         color: colour ?? undefined,
         className: colour ? undefined : 'track-unknown',
         weight: 2.5,

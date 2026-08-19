@@ -12,6 +12,7 @@ import { sample } from '@c4po/plot';
 import {
   type CatalogEntry, duration, isActive, isoDay, loadCatalog, loadSeries,
 } from './data.ts';
+import { reachableRuns, type Fix } from './reachable.ts';
 import { VENDOR_COLOR } from '../config.ts';
 
 /**
@@ -212,7 +213,8 @@ export function makeFleetMap(
     ) {
       const lat = series.columns.get('lat')!;
       const lon = series.columns.get('lon')!;
-      const points: Array<[number, number]> = [];
+      const time = series.columns.get('time')!;
+      const fixes: Fix[] = [];
       /* A track on a fleet map is a shape, not a measurement: 400 points is
          past what a 1200 px map resolves, and 153 × 8,000 polyline vertices
          is what stops it panning. */
@@ -220,15 +222,22 @@ export function makeFleetMap(
       for (let i = 0; i < series.rows; i += stride) {
         const la = lat[i];
         const lo = lon[i];
-        /* A missing fix is skipped rather than drawn: position drops out of
-           telemetry regularly in this archive, and joining across the gap
-           draws a line the vehicle did not sail. */
+        /* A fix that is missing, or at the null island, is not a position.
+           Skipping it leaves its neighbours adjacent, which is what
+           `reachableRuns` then has to judge. */
         if (!Number.isFinite(la) || !Number.isFinite(lo)) continue;
         if (la === 0 && lo === 0) continue;
-        points.push([la, lo]);
+        fixes.push({ lat: la, lon: lo, t: time[i] });
         bounds.extend([la, lo]);
       }
-      if (points.length < 2) return;
+      if (fixes.length < 2) return;
+
+      /* **The pen lifts where the vehicle could not have sailed.** Three
+         2024 Saildrones were recovered in the Atlantic and their records
+         continue with dock telemetry from Alameda, so a single polyline
+         through every fix draws a 4,000 km line across the United States. */
+      const runs = reachableRuns(fixes);
+      if (!runs.length) return;
 
       const colour = options.colour
         ? options.colour(d, index, total)
@@ -264,26 +273,37 @@ export function makeFleetMap(
          the paint", and the selector must out-specify Leaflet's own
          `.leaflet-interactive { pointer-events: auto }`. See the stylesheet
          rule on `path.track-hit`. */
-      const hit = L.polyline(points, {
-        color: colour, weight: 14, opacity: 0, className: 'track-hit',
-      }).addTo(lines);
-      L.polyline(points, { color: colour, weight: 2, opacity: 0.85 }).addTo(lines);
+      const cuts = runs.length - 1;
+      const tip = cuts
+        ? `${label}\n${cuts} break${cuts === 1 ? '' : 's'} where the vehicle could `
+          + 'not have sailed between fixes'
+        : label;
 
-      hit.bindTooltip(label, { sticky: true });
-      hit.on('click', () => pick?.(d.id));
+      for (const run of runs) {
+        const line = run.map((f) => [f.lat, f.lon] as [number, number]);
+        const hit = L.polyline(line, {
+          color: colour, weight: 14, opacity: 0, className: 'track-hit',
+        }).addTo(lines);
+        L.polyline(line, { color: colour, weight: 2, opacity: 0.85 }).addTo(lines);
+        hit.bindTooltip(tip, { sticky: true });
+        hit.on('click', () => pick?.(d.id));
+      }
 
       /* **The dot stays.** A track has two ends and nothing on it says which
          is recent, and "where is it now" is the question a fleet map is
          opened with. */
-      const last = points[points.length - 1];
-      const live = isActive(d, Date.now() / 1000);
+      const lastRun = runs[runs.length - 1];
+      const last: [number, number] = [
+        lastRun[lastRun.length - 1].lat, lastRun[lastRun.length - 1].lon,
+      ];
+      const live = isActive(d);
       L.circleMarker(last, {
         radius: live ? 5 : 3.5,
         color: colour,
         weight: live ? 2 : 1,
         fillColor: colour,
         fillOpacity: live ? 0.95 : 0.35,
-      }).addTo(dots).bindTooltip(label, { sticky: true })
+      }).addTo(dots).bindTooltip(tip, { sticky: true })
         .on('click', () => pick?.(d.id));
     }
   }

@@ -86,13 +86,30 @@ export interface Catalog {
 
 let catalogPromise: Promise<Catalog> | undefined;
 
+/**
+ * When the data on this site was fetched, in epoch seconds.
+ *
+ * **Every "is it reporting" question is asked against this, not against the
+ * clock**, and that is the difference between a number that means something
+ * and one that decays to zero. See `isActive`.
+ */
+let fetchedAt = NaN;
+
 /** The catalog, fetched once per page load however many callers ask. */
 export function loadCatalog(): Promise<Catalog> {
   catalogPromise ??= fetch(withBase(DATA.catalog)).then((r) => {
     if (!r.ok) throw new Error(`catalog: ${r.status} ${r.statusText}`);
     return r.json() as Promise<Catalog>;
+  }).then((catalog: Catalog) => {
+    fetchedAt = catalog.seriesBuilt ?? catalog.fetched;
+    return catalog;
   });
   return catalogPromise;
+}
+
+/** When this site's data was fetched. NaN before the catalog has loaded. */
+export function dataFetchedAt(): number {
+  return fetchedAt;
 }
 
 /* --------------------------------------------------------------- series -- */
@@ -221,8 +238,25 @@ export function duration(seconds: number): string {
   return `${Math.round(seconds / 86400)} days`;
 }
 
-/** Whether a record is still reporting, six hours being the threshold
-    because every active mission here reports at least every five minutes. */
-export function isActive(entry: CatalogEntry, now = Date.now() / 1000): boolean {
-  return Number.isFinite(entry.end) && now - entry.end < 6 * 3600;
+/**
+ * Whether a record was reporting **when this site last fetched it**.
+ *
+ * Six hours is the threshold, because every active mission in this archive
+ * reports at least every five minutes.
+ *
+ * **Measured against the fetch, not against the clock**, and that is the
+ * whole point. The data here is a snapshot rebuilt every six hours, so a
+ * vehicle reporting perfectly is up to six hours stale by the end of a
+ * cycle — and asked against the wall clock, the count of live vehicles falls
+ * to zero shortly before every rebuild and jumps back afterwards. Measured
+ * an hour and a half after one build, "reporting" had already dropped from
+ * 21 to 2 while nothing at sea had changed.
+ *
+ * "Was it reporting when we looked" is the question a snapshot can answer.
+ * The pages print how long ago that was, which is what makes the answer
+ * usable.
+ */
+export function isActive(entry: CatalogEntry, reference = fetchedAt): boolean {
+  if (!Number.isFinite(reference)) return false;
+  return Number.isFinite(entry.end) && reference - entry.end < 6 * 3600;
 }

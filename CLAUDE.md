@@ -307,6 +307,40 @@ renamed the column would need the figure torn down and rebuilt on every
 change: new listeners on the same DOM, and the reader's colormap and limits
 thrown away.
 
+### The pen lifts where the vehicle could not have sailed
+
+A polyline through every fix draws a straight line across whatever lies
+between two consecutive ones, and on this archive that is sometimes a
+continent. **Three 2024 Saildrones were recovered in the Atlantic and their
+records continue with dock telemetry from Alameda**: the last segment of
+`sd1042_hurricane_2024` runs **4,055 km from off Cape Hatteras to 37.8 °N
+122.3 °W — San Francisco Bay — over twenty days**, and joined up it crosses
+the United States. The vehicle was on a ship, and nothing in the file says
+so.
+
+`lib/reachable.ts` asks whether the vehicle *could have got there*, and there
+are three ways the answer is no:
+
+| | why |
+|---|---|
+| **too fast** | over 8 m/s, the same limit the position check uses |
+| **too long a silence** | over 6× the drawn spacing — `sd1040_hurricane_2024` covers 947 km in 86 days, which is 0.13 m/s and perfectly sailable, but nothing was observed between |
+| **backwards** | three Oshen records step back in time between consecutive rows |
+
+The second is the one a speed test alone misses, and it is the one that
+catches Alameda: 4,055 km over 20 days is **2.3 m/s**, well inside what a
+Saildrone does.
+
+The cut is a *drawing* decision and touches nothing else — every fix is still
+a point, still in the data, still exported. The tooltip says how many breaks
+a track has. Both maps use the one rule, because a leap the quality report
+calls impossible and the map drew anyway would be the site contradicting
+itself on one screen.
+
+Half of `test:track` asserts that an **ordinary** track is left alone: a rule
+that cuts a real transit into pieces is worse than the line it prevents,
+because a broken track reads as missing data.
+
 ### A direction takes `hsv`
 
 A bearing wraps, so 359° and 1° must come out nearly the same colour. Every
@@ -335,6 +369,7 @@ are real PMEL responses captured 2026-08-19.
 | `test:vars` | that every naming era resolves to the same canonical variable |
 | `test:qc` | each check against a record whose faults are known |
 | `test:derive` | U10, wind stress, humidity and the TEOS-10 surface set |
+| `test:track` | where a track is cut, and that an ordinary transit is not |
 | `test:plot` | windows vs rescaling, reported decimation, robust limits, colormap names |
 | `test:contrast` | every colour pair that ships |
 | `test:pages` | the base path, the CSP, and every CSS rule jsdom cannot see |
@@ -393,6 +428,13 @@ Each was written, run, and found to be wrong. Each now has a gate.
   stopped at the end of a record that ended eight months ago is a mission
   being packed up. Both are worth reporting; neither is "unusable where it
   fires".
+- **The fleet map drew tracks across North America.** Reported by a reader
+  looking at the live site, which is the only way it was ever going to be
+  found: the line is plausible unless you notice it crosses land. The
+  comment above the offending loop already said "joining across the gap
+  draws a line the vehicle did not sail" — and the code skipped the missing
+  fix and joined its neighbours, which is exactly that. The comment
+  described the intent and the code did the opposite.
 - **The site's own `tokens.css` had drifted from the sibling's** and was
   missing the three map-marker colours entirely, so the exported PNG's
   markers and the page's disagreed. *Gate:* `test:contrast` compares the

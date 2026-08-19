@@ -177,7 +177,7 @@ export function makeCampaignPage(root: Document): { load(slug: string | null): P
       if (live) {
         const tag = document.createElement('span');
         tag.className = 'live';
-        tag.textContent = `${live} reporting now`;
+        tag.textContent = `${live} reporting when fetched`;
         li.append(tag);
       }
       return li;
@@ -198,7 +198,7 @@ export function makeCampaignPage(root: Document): { load(slug: string | null): P
       ['Vendors', c.vendors.join(', ')],
       ['Span', `${c.start ? isoDay(c.start) : '—'} → ${c.end ? isoDay(c.end) : '—'}`
         + (c.start && c.end ? ` (${duration(c.end - c.start)})` : '')],
-      ['Reporting now', String(members.filter((d) => isActive(d)).length)],
+      ['Reporting when fetched', String(members.filter((d) => isActive(d)).length)],
       ['Findings', `${findings} across the cohort`
         + (worstCount ? `, ${worstCount} record${worstCount === 1 ? '' : 's'} with a high-severity one` : '')],
     ];

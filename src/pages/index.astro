@@ -32,7 +32,7 @@ import { withBase } from '../lib/url';
           {VENDORS.map((v) => (
             <li><span class="swatch" style={`background:${v.color}`}></span>{v.label}</li>
           ))}
-          <li><span class="dot live"></span>reporting now</li>
+          <li><span class="dot live"></span>reporting when fetched</li>
           <li><span class="dot"></span>last known position</li>
         </ul>
       </div>
@@ -69,7 +69,7 @@ import { withBase } from '../lib/url';
       </fieldset>
       <label class="check standalone">
         <input type="checkbox" name="activeOnly" />
-        <span>Reporting now</span>
+        <span>Reporting when fetched</span>
       </label>
       <button type="button" class="btn" data-reset>Reset</button>
     </form>
@@ -123,7 +123,7 @@ import { withBase } from '../lib/url';
     emptyFilters, makeFleetMap, matches, yearsOf,
   } from '../lib/fleet.ts';
   import {
-    isActive, isoDay, loadCatalog, since, type CatalogEntry,
+    dataFetchedAt, isActive, isoDay, loadCatalog, since, type CatalogEntry,
   } from '../lib/data.ts';
   import { withBase } from '../lib/url.ts';
 
@@ -251,13 +251,16 @@ import { withBase } from '../lib/url';
   }
 
   function render() {
-    const now = Date.now() / 1000;
+    /* The fetch time, not the clock: this data is a snapshot, and "was it
+       reporting when we looked" is the only reporting question it can
+       answer. See `isActive`. */
+    const now = dataFetchedAt();
     const shown = all.filter((d) => matches(d, filters, now));
     shown.sort(compare);
 
     const active = shown.filter((d) => isActive(d, now)).length;
     countsEl.textContent = `${shown.length} of ${all.length} records · `
-      + `${active} reporting · fetched ${since(fetched, now)}`;
+      + `${active} reporting when fetched · ${since(fetched)}`;
 
     rowsEl.replaceChildren(...shown.slice(0, PAGE).map((d) => row(d, now)));
     moreEl.textContent = shown.length > PAGE

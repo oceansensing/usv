@@ -6,7 +6,7 @@
   "workspaces": [
     "packages/*"
   ],
-  "description": "Uncrewed surface vehicle data visualization — Saildrone, Oshen and Chance Maritime on the NOAA PMEL ERDDAP",
+  "description": "Uncrewed surface vehicle data visualization \u2014 Saildrone, Oshen and Chance Maritime on the NOAA PMEL ERDDAP",
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",
@@ -25,7 +25,8 @@
     "test:plot": "node scripts/test-plot.mjs",
     "test:contrast": "node scripts/test-contrast.mjs",
     "test:pages": "node scripts/test-pages.mjs",
-    "verify": "npm run build && npm run check && npm run check:docs && npm run test:erddap && npm run test:vars && npm run test:qc && npm run test:derive && npm run test:plot && npm run test:contrast && npm run test:pages"
+    "verify": "npm run build && npm run check && npm run check:docs && npm run test:erddap && npm run test:vars && npm run test:qc && npm run test:derive && npm run test:track && npm run test:plot && npm run test:contrast && npm run test:pages",
+    "test:track": "node scripts/test-track.mjs"
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.3.0",
