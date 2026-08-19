@@ -96,6 +96,11 @@ same(['micromol s-1 m-2', 'umol_s-1_m-2', 'umol m-2 s-1'], 'µmol/m²/s');
 same(['ppb'], 'ppb');
 same(['(m sr)-1', 'm-1 sr-1'], 'm⁻¹ sr⁻¹');
 
+/* Position. Present on the Chance min/max/stddev spread columns and on the
+   per-vehicle position columns of the multi-drone TPOS collections. */
+same(['degrees_north', 'degree_north'], '°N');
+same(['degrees_east', 'degree_east'], '°E');
+
 /* Fluxes and the rest. */
 same(['w m-2', 'w/m2', 'w m^-2'], 'W/m²');
 same(['n/m2', 'n m-2'], 'N/m²');

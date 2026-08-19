@@ -299,7 +299,13 @@ export const PLAUSIBLE: Record<string, [number, number]> = {
   relative_humidity: [0, 105],
   wind_speed: [0, 120],
   wind_gust: [0, 150],
-  wind_direction: [0, 360],
+  /* A bearing is published two ways in this archive: 0–360 on the Saildrone
+     and Oshen records, −180–180 on several Chance columns. Both are correct
+     and neither is an error, so the range spans both rather than reporting a
+     whole convention as 5,636 impossible values — which is what a 0–360
+     range did on the first Chance build. `directionConvention` reports which
+     one a record used. */
+  wind_direction: [-180, 360],
   salinity: [0, 45],
   conductivity: [0, 70],
   oxygen_concentration: [0, 600],
@@ -313,12 +319,42 @@ export const PLAUSIBLE: Record<string, [number, number]> = {
   shortwave_down: [-20, 1500],
   longwave_down: [0, 700],
   speed_over_ground: [0, 15],
-  course_over_ground: [0, 360],
-  heading: [0, 360],
+  course_over_ground: [-180, 360],
+  heading: [-180, 360],
   pitch: [-90, 90],
   roll: [-180, 180],
   u10: [0, 150],
 };
+
+/**
+ * Which convention a bearing column uses.
+ *
+ * Not a fault — both are standard — but it has to be stated, because two
+ * vehicles on one axis under different conventions put the same heading
+ * 360° apart, and the plot looks fine.
+ */
+export function directionConvention(
+  values: Float64Array, quantity: string,
+): Finding[] {
+  let min = Infinity;
+  let max = -Infinity;
+  for (const v of values) {
+    if (!Number.isFinite(v)) continue;
+    if (v < min) min = v;
+    if (v > max) max = v;
+  }
+  if (!(min < 0)) return [];
+  return [{
+    check: 'metadata',
+    severity: 'note',
+    quantity,
+    summary: `bearings are published on −180…180 rather than 0…360`,
+    detail: `The record runs from ${min.toFixed(1)}° to ${max.toFixed(1)}°. Both `
+      + 'conventions are standard and neither is wrong. It is stated because two '
+      + 'vehicles drawn on one axis under different conventions put the same heading '
+      + '360° apart, and nothing about the figure looks amiss when they do.',
+  }];
+}
 
 export function range(
   time: Float64Array, values: Float64Array, quantity: string, units: string,

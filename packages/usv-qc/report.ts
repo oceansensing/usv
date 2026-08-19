@@ -13,6 +13,7 @@ import { rank } from './types.ts';
 import {
   cadence, dropout, gaps, range, reportingInterval, spikes, stuck,
 } from './series.ts';
+import { directionConvention } from './series.ts';
 import { position, silent } from './position.ts';
 import {
   attribution, columnMetadata, humidityUnits, unresolvedColumns, windHeight,
@@ -82,7 +83,9 @@ export function run(input: RunInput): Report {
 
     findings.push(...range(time, values, key, units));
 
-    if (!CIRCULAR.has(key)) {
+    if (CIRCULAR.has(key)) {
+      findings.push(...directionConvention(values, key));
+    } else {
       findings.push(...spikes(time, values, key, units));
       if (!RESTS_AT_ZERO.has(key)) findings.push(...stuck(time, values, key, units));
     }
@@ -118,12 +121,65 @@ export function run(input: RunInput): Report {
   ));
 
   return {
-    findings: rank(findings),
+    findings: rank(mergeSimultaneousDropouts(findings)),
     resolutionSeconds,
     cadenceSeconds,
     rows: time.length,
     fetched,
   };
+}
+
+/**
+ * Sensors that died together are one event, not twelve.
+ *
+ * A Chance record whose science payload stopped on 2026-01-27 produced nine
+ * separate "no data since 2026-01-27" findings, one per column, filling the
+ * top of the report with the same fact. When a payload loses power, or a
+ * mission's science phase ends, every instrument on it stops in the same
+ * minute — and a reader needs to see that as one thing that happened.
+ *
+ * Grouped by the **day** rather than the exact second: instruments in one
+ * payload stop within minutes of each other, not simultaneously, and a
+ * second-exact grouping would split the very event it exists to join.
+ * Anything that stopped on its own day keeps its own finding.
+ */
+export function mergeSimultaneousDropouts(findings: readonly Finding[]): Finding[] {
+  const dead = findings.filter(
+    (f) => f.check === 'dropout' && f.severity === 'high' && f.quantity && f.start,
+  );
+  if (dead.length < 3) return [...findings];
+
+  const byDay = new Map<string, Finding[]>();
+  for (const f of dead) {
+    const day = new Date(f.start! * 1000).toISOString().slice(0, 10);
+    const group = byDay.get(day) ?? [];
+    group.push(f);
+    byDay.set(day, group);
+  }
+
+  const merged: Finding[] = [];
+  const consumed = new Set<Finding>();
+  for (const [day, group] of byDay) {
+    if (group.length < 3) continue;
+    for (const f of group) consumed.add(f);
+    const names = group.map((f) => f.quantity!).sort();
+    merged.push({
+      check: 'dropout',
+      severity: 'high',
+      summary: `${group.length} instruments stopped together on ${day}, while the `
+        + 'vehicle kept reporting',
+      detail: `${names.join(', ')}. Grouped because they stopped within the same day: `
+        + 'when a payload loses power or a mission\'s science phase ends, every '
+        + 'instrument on it stops at once, and that is one event rather than '
+        + `${group.length}. Each column is still empty from this date to the end of `
+        + 'the record.',
+      start: Math.min(...group.map((f) => f.start!)),
+      end: Math.max(...group.map((f) => f.end ?? f.start!)),
+      count: group.length,
+    });
+  }
+
+  return [...findings.filter((f) => !consumed.has(f)), ...merged];
 }
 
 /** A one-line count per check, for a badge row. */
@@ -146,6 +202,7 @@ export function tally(findings: readonly Finding[]): Record<Check, number> {
  */
 export function coverageNote(report: Report): string {
   const { resolutionSeconds, cadenceSeconds } = report;
+  if (!(cadenceSeconds > 0)) return 'The vehicle\'s reporting interval could not be measured.';
   const native = resolutionSeconds <= cadenceSeconds * 1.01;
   if (native) {
     return 'These checks ran at the rate the vehicle reported, so a single-sample '

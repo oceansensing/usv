@@ -159,11 +159,20 @@ export function position(
  * rather than lost.
  */
 export function silent(
-  lastReport: number, now: number, options: { hours?: number } = {},
+  lastReport: number, now: number,
+  options: { hours?: number; archivedAfterDays?: number } = {},
 ): Finding[] {
   const limit = (options.hours ?? 24) * 3600;
   const quiet = now - lastReport;
   if (!(quiet > limit)) return [];
+  /* **A record that ended eight months ago is archived, not silent.** The
+     first build reported "no report for 202.4 days" on every historic record
+     in the archive — 130-odd findings that are all the same fact, that the
+     mission is over, and that push the live ones off the page. Beyond the
+     window this is not a finding at all; the catalog already shows the end
+     date. */
+  const archived = (options.archivedAfterDays ?? 30) * 86400;
+  if (quiet > archived) return [];
   return [{
     check: 'silent',
     severity: quiet > 7 * 86400 ? 'medium' : 'low',
