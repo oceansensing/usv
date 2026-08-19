@@ -214,6 +214,13 @@ for (const d of merged.datasets) {
   d.findings = s.findings;
   d.checks = s.checks;
   d.seriesFetched = s.fetched;
+  /* **Only where the catalog has none.** ERDDAP's `allDatasets` is the
+     authority on a record's span and is used unchanged wherever it has one;
+     but it publishes an empty `maxTime` for at least one record that has
+     eight thousand rows, and a null end reaching the fleet table renders as a
+     span of −20,400 days. The series knows, because it read the rows. */
+  if (!Number.isFinite(d.start) && Number.isFinite(s.firstTime)) d.start = s.firstTime;
+  if (!Number.isFinite(d.end) && Number.isFinite(s.lastTime)) d.end = s.lastTime;
 }
 merged.seriesBuilt = Math.floor(started / 1000);
 writeJson(CATALOG, merged);
@@ -443,6 +450,12 @@ async function buildOne(d) {
       id: d.id,
       rows: series.rows,
       variables: variables.length,
+      /* **What the record actually spans**, which the catalog does not always
+         know: `allDatasets` publishes an empty `maxTime` for
+         `oshenPC1_hurricane_2025` even though it has 7,997 rows. Carried here
+         so the merge below can fill the gap from the data itself. */
+      firstTime: Number.isFinite(time[0]) ? time[0] : null,
+      lastTime: Number.isFinite(time[table.rows - 1]) ? time[table.rows - 1] : null,
       cadenceSeconds: nativeCadence,
       resolutionSeconds: report.resolutionSeconds,
       severity: worst(report.findings) ?? null,

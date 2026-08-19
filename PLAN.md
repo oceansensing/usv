@@ -173,7 +173,7 @@ matters before it is replicated nine times.
 
 ### The gates
 
-**831 offline checks** in nine suites, chained by `npm run verify`. Nothing
+**833 offline checks** in nine suites, chained by `npm run verify`. Nothing
 in it touches the network, so it cannot fail because PMEL is having a bad
 morning — which is exactly when you least want the deploy blocked.
 

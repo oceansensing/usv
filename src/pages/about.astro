@@ -17,8 +17,8 @@ import { withBase } from '../lib/url';
     <div class="prose">
       <p class="lede">
         Tracks, time series and quality control for every Saildrone, Oshen and
-        Chance Maritime uncrewed surface vehicle published on the
-        <a href={PMEL}>NOAA PMEL ERDDAP</a> — 153 deployments, 2017 to now,
+        Chance Maritime uncrewed surface vehicle published on
+        the <a href={PMEL}>NOAA PMEL ERDDAP</a> — 153 deployments, 2017 to now,
         active and historic.
       </p>
 
@@ -32,8 +32,8 @@ import { withBase } from '../lib/url';
       </p>
       <p>
         <strong>This site is not live, and it cannot be.</strong>
-        <code>data.pmel.noaa.gov</code> sends no
-        <code>Access-Control-Allow-Origin</code> header on any response, so a
+        <code>data.pmel.noaa.gov</code> sends
+        no <code>Access-Control-Allow-Origin</code> header on any response, so a
         page in your browser cannot read it at all. The data here was fetched
         by the build, checked, and written out as JSON this origin serves.
         Every page prints when its record was fetched. If you need the current
@@ -103,8 +103,8 @@ import { withBase } from '../lib/url';
       <h2>What the quality checks do and do not claim</h2>
       <p>
         The archive publishes no quality flags on almost all of this data, so
-        every quality statement here was made by this site. The
-        <a href={withBase('/qc/')}>quality page</a> says what each of the nine
+        every quality statement here was made by this site.
+        The <a href={withBase('/qc/')}>quality page</a> says what each of the nine
         checks looks for and — more usefully — what each one is <em>not</em>.
       </p>
       <p>
@@ -117,8 +117,8 @@ import { withBase } from '../lib/url';
       <ul>
         <li>
           <strong>Analysis.</strong> Intercomparison, storm context and glider
-          collocation live in
-          <a href={LAB.analysis}>NOAA-USV-analysis</a>. This site shows what
+          collocation live
+          in <a href={LAB.analysis}>NOAA-USV-analysis</a>. This site shows what
           the vehicles measured and what is wrong with it; it does not draw
           conclusions from it.
         </li>
@@ -138,8 +138,8 @@ import { withBase } from '../lib/url';
       <h2>Credits</h2>
       <p>
         Built by <strong>Donglai Gong</strong> (Virginia Institute of Marine
-        Science, William &amp; Mary) at the
-        <a href={LAB.url}>Collaboratory for Physical Oceanography</a>, with
+        Science, William &amp; Mary) at
+        the <a href={LAB.url}>Collaboratory for Physical Oceanography</a>, with
         Claude (Anthropic). Source at <a href={REPO}>oceansensing/usv</a>; all
         rights reserved.
       </p>

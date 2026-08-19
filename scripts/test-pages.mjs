@@ -262,4 +262,43 @@ section('nothing was left switched on for development');
   ok('no debugger statement shipped', !/\bdebugger\b/.test(js));
 }
 
+section('the prose has spaces where prose needs them');
+
+{
+  /*
+   * **Astro drops whitespace that falls between text and an element when it
+   * contains a newline.** So prose wrapped as
+   *
+   *     record published on the
+   *     <a href={PMEL}>NOAA PMEL ERDDAP</a>.
+   *
+   * ships as "published on theNOAA PMEL ERDDAP" — correct in the source,
+   * wrong on the page, and invisible to anything that reads the source. It
+   * was on four of the six pages at once: eight links, a `<strong>` and a
+   * `<code>`, including the first sentence of the fleet page.
+   *
+   * The fix is to keep the word and the element on one source line. This is
+   * what notices when a later reflow separates them again.
+   */
+  const glued = [];
+  for (const { file, html } of docs) {
+    const re = /([a-z])<(a|strong|em|code)\b[^>]*>([A-Za-z])/g;
+    let m;
+    while ((m = re.exec(html))) glued.push(`${file}: ${m[1]}<${m[2]}>${m[3]}`);
+  }
+  ok('no inline element is glued to the word before it', glued.length === 0,
+    glued.join(', ') || `${docs.length} pages clean`);
+
+  /* The same trim on the closing side: `</a>text` where a space was meant.
+     Punctuation after a link is correct and common, so only a letter counts. */
+  const trailing = [];
+  for (const { file, html } of docs) {
+    const re = /<\/(a|strong|em|code)>([A-Za-z])/g;
+    let m;
+    while ((m = re.exec(html))) trailing.push(`${file}: </${m[1]}>${m[2]}`);
+  }
+  ok('nor to the word after it', trailing.length === 0,
+    trailing.join(', ') || 'clean');
+}
+
 done();

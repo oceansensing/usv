@@ -617,3 +617,37 @@ Each was written, run, and found to be wrong. Each now has a gate.
   each one function now. *Gate:* `test:build` asserts no build script contains
   a literal `.cache/info` or spells the stamp out for itself — which found two
   further copies of the stamp beyond the two that broke.
+- **Astro drops whitespace between text and an element when it contains a
+  newline.** Prose wrapped as `published on the` / newline / `<a>NOAA PMEL
+  ERDDAP</a>` ships as **"published on theNOAA PMEL ERDDAP"** — correct in the
+  source, wrong on the page, and invisible to anyone reading the source. It
+  was on four of the six pages at once: eight links, a `<strong>` and a
+  `<code>`, including the first sentence of the fleet page. Reported from a
+  screenshot, which is the only place it is visible. The fix is to keep the
+  word and the element on one source line. *Gate:* `test:pages` scans the
+  built HTML for a letter adjacent to an inline tag on either side.
+- **`.field` is a control's chrome and was put on a label.** The fleet page
+  wrote `<label class="field"><span>Search</span><input></label>`, which draws
+  the control's border and padding around the *label* — a box inside a box —
+  and, being `display: block`, leaves the caption and the control as adjacent
+  inline boxes with nothing between them. `Search` printed hard against the
+  input's own border. Every one of the twenty other uses puts `.field` on the
+  control. The pairing is now `.labelled` in `global.css`, which is also where
+  `campaign.astro` had grown its own private copy of the same three lines.
+- **A record ran for −20,400 days.** `oshenPC1_hurricane_2025` has 7,997 rows
+  and an **empty `maxTime`** in `allDatasets`, so the catalog's `end` is null —
+  and the guard was `Number.isFinite(d.end - d.start)`, which passes, because
+  `null` coerces to zero and `null - 1762518030` is a perfectly finite
+  negative number. **Check the operands, never the arithmetic.** The build now
+  also fills a missing span from the rows it read, so the record has a real
+  end rather than a dash.
+- **A map fitted to nothing stays fitted to nothing.** `fitBounds` on a
+  zero-width container asks what zoom shows the world in no pixels; the answer
+  is the maximum, so the fleet map lands at zoom 13 on a point of open ocean
+  with two tiles and no tracks. `invalidateSize` then restores the size and
+  **keeps the centre and zoom**, so nothing recovers it. A background tab, a
+  collapsed panel and a hidden pane all reach it. The fit is now held and
+  applied only to a container with a size, and re-applied when one arrives.
+- **"40 of 40 tracks · 112 more match and are not drawn"** reads as *all of
+  them* and then contradicts itself in the same breath. The denominator is now
+  what matched, not what was picked.

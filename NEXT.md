@@ -13,7 +13,7 @@ it, `PLAN.md` for the running record. This is the one job list.
 | | |
 |---|---|
 | site | https://oceansensing.org/usv/ — `oceansensing/usv` |
-| gate | `npm run verify` — 831 offline checks, nine suites |
+| gate | `npm run verify` — 833 offline checks, nine suites |
 | overview | 152 of 153 records, 1.08 M points, 2,403 findings |
 | **2026** | https://oceansensing.org/usv-data-2026/ — 24 records, 74 chunks, **15.7 MB** |
 | **2021** | https://oceansensing.org/usv-data-2021/ — 21 records, 437 chunks, **118.4 MB** |

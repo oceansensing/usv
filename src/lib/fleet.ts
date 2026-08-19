@@ -146,12 +146,37 @@ export function makeFleetMap(
      frame. */
   let lastWidth = 0;
   let lastHeight = 0;
+  /** The bounds the last `show` asked for, kept so the fit can be applied
+      again once the container has a size to fit them to. */
+  let wanted: L.LatLngBounds | null = null;
+
+  /**
+   * Fit the map to `wanted`, if there is anything to fit it to.
+   *
+   * **Guarded on the container having a size.** `fitBounds` on a zero-width
+   * element asks Leaflet what zoom shows the world in no pixels, and the
+   * answer is the maximum — so the map lands at zoom 13 on a point in the
+   * open ocean, with two tiles and no tracks in view. `invalidateSize` then
+   * restores the size but *keeps the centre and zoom*, so nothing ever
+   * recovers it. A background tab, a collapsed panel and a hidden pane all
+   * reach this.
+   */
+  function applyFit(): void {
+    if (!wanted?.isValid()) return;
+    if (element.clientWidth < 1 || element.clientHeight < 1) return;
+    map.fitBounds(wanted, { padding: [24, 24] });
+  }
+
   new ResizeObserver(() => {
     const { clientWidth: w, clientHeight: h } = element;
     if (w === lastWidth && h === lastHeight) return;
+    const wasUnsized = lastWidth < 1 || lastHeight < 1;
     lastWidth = w;
     lastHeight = h;
     map.invalidateSize();
+    /* Coming from no size at all, whatever view was computed was computed
+       against nothing. This is the only chance to put it right. */
+    if (wasUnsized) applyFit();
   }).observe(element);
 
   async function show(records: CatalogEntry[]): Promise<void> {
@@ -171,11 +196,18 @@ export function makeFleetMap(
     const bounds = L.latLngBounds([]);
     let done = 0;
     const say = () => {
-      status.textContent = `${done} of ${chosen.length} tracks`
-        + (drawable.length > chosen.length
-          /* Printed, never silent. */
-          ? ` · ${drawable.length - chosen.length} more match and are not drawn`
-          : '');
+      /* **The denominator is what matched, not what was picked.** "40 of 40
+         tracks · 112 more match and are not drawn" reads as *all of them*
+         and then contradicts itself in the same breath. While the files are
+         arriving the useful number is progress; once they have all arrived
+         the useful number is coverage. */
+      const capped = drawable.length > chosen.length;
+      status.textContent = done < chosen.length
+        ? `${done} of ${chosen.length} tracks…`
+        : capped
+          ? `${chosen.length} of ${drawable.length} matching tracks drawn`
+            + ` — the ${MAX_TRACKS} most recent`
+          : `${chosen.length} track${chosen.length === 1 ? '' : 's'}`;
     };
     say();
 
@@ -205,7 +237,8 @@ export function makeFleetMap(
        opening view while the files download — a full fleet is 40 requests —
        and jumps to the fit when they land. That is the intended behaviour
        and it reads as a bug from a screenshot taken halfway through. */
-    if (bounds.isValid()) map.fitBounds(bounds, { padding: [24, 24] });
+    wanted = bounds.isValid() ? bounds : null;
+    applyFit();
 
     function drawTrack(
       series: Awaited<ReturnType<typeof loadSeries>>, d: CatalogEntry,

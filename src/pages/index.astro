@@ -19,9 +19,9 @@ import { withBase } from '../lib/url';
     </div>
 
     <p class="lede">
-      Every Saildrone, Oshen and Chance Maritime record published on the
-      <a href="https://data.pmel.noaa.gov/pmel/erddap/info/index.html">NOAA PMEL
-      ERDDAP</a>. Click a track to open that vehicle.
+      Every Saildrone, Oshen and Chance Maritime record published on
+      the <a href="https://data.pmel.noaa.gov/pmel/erddap/info/index.html">NOAA PMEL ERDDAP</a>.
+      Click a track to open that vehicle.
     </p>
 
     <div class="figure-full">
@@ -39,21 +39,21 @@ import { withBase } from '../lib/url';
     </div>
 
     <form class="filters" data-filters onsubmit="return false">
-      <label class="field grow">
+      <label class="labelled grow">
         <span>Search</span>
-        <input type="search" name="text" placeholder="vehicle, campaign, institution, id" />
+        <input class="field" type="search" name="text" placeholder="vehicle, campaign, institution, id" />
       </label>
-      <label class="field">
+      <label class="labelled">
         <span>Campaign</span>
-        <select name="campaign"><option value="">all</option></select>
+        <select class="field" name="campaign"><option value="">all</option></select>
       </label>
-      <label class="field">
+      <label class="labelled">
         <span>Year</span>
-        <select name="year"><option value="">all</option></select>
+        <select class="field" name="year"><option value="">all</option></select>
       </label>
-      <label class="field">
+      <label class="labelled">
         <span>Quality</span>
-        <select name="severity">
+        <select class="field" name="severity">
           <option value="">any</option>
           {SEVERITIES.map((s) => <option value={s.key}>{s.short} — {s.label}</option>)}
         </select>
@@ -110,8 +110,8 @@ import { withBase } from '../lib/url';
         <p>
           <strong>The archive publishes no quality flags</strong> on the 2026
           fleet, on any Oshen or on any Chance record, so every quality
-          statement here was computed by this site and is described on the
-          <a href={withBase("/qc/")}>quality page</a>.
+          statement here was computed by this site and is described on
+          the <a href={withBase("/qc/")}>quality page</a>.
         </p>
       </div>
     </details>
@@ -269,10 +269,27 @@ import { withBase } from '../lib/url';
     void fleet.show(shown);
   }
 
+  /**
+   * How long a record ran, in seconds, or null where that is not known.
+   *
+   * **Both ends are checked, not the difference.** `null - 1762518030` is a
+   * perfectly finite `-1762518030`, because `null` coerces to zero — so
+   * `Number.isFinite(d.end - d.start)` passes on a record with no end and the
+   * table printed `oshenPC1_hurricane_2025` as **−20,400 days**. ERDDAP
+   * publishes an empty `maxTime` for it despite its 7,997 rows; the build now
+   * fills that in from the data, and this is what keeps the next one from
+   * reaching a reader.
+   */
+  function span(d: CatalogEntry): number | null {
+    if (!Number.isFinite(d.start) || !Number.isFinite(d.end)) return null;
+    const s = d.end - d.start;
+    return s >= 0 ? s : null;
+  }
+
   function compare(a: CatalogEntry, b: CatalogEntry): number {
     const dir = sortDown ? -1 : 1;
     const value = (d: CatalogEntry): string | number => {
-      if (sortKey === 'span') return (d.end - d.start) || 0;
+      if (sortKey === 'span') return span(d) ?? 0;
       if (sortKey === 'quantities') return d.quantities.length;
       /* Worst first when sorting by quality, and a record with nothing found
          sorts last rather than first — "no findings" is an answer, not the
@@ -326,10 +343,8 @@ import { withBase } from '../lib/url';
     }
     tr.append(end);
 
-    tr.append(cell(
-      Number.isFinite(d.end - d.start) ? String(Math.round((d.end - d.start) / 86400)) : '—',
-      'num mono',
-    ));
+    const ran = span(d);
+    tr.append(cell(ran === null ? '—' : String(Math.round(ran / 86400)), 'num mono'));
     tr.append(cell(String(d.quantities.length), 'num mono'));
 
     const quality = document.createElement('td');
@@ -516,8 +531,15 @@ import { withBase } from '../lib/url';
     margin-block-end: var(--space-md);
   }
 
-  .field.grow {
+  .labelled.grow {
     flex: 1 1 18rem;
+  }
+
+  /* The label is what grows; without this the control keeps its intrinsic
+     width and the space the label claimed is left blank beside it. */
+  .labelled.grow .field {
+    flex: 1;
+    min-width: 0;
   }
 
   .vendors {

@@ -54,9 +54,9 @@ import { withBase } from '../lib/url';
       <section class="comparewrap">
         <div class="topline">
           <h2 class="figure-title">The cohort on one axis</h2>
-          <label class="field inline">
+          <label class="labelled">
             <span class="eyebrow">quantity</span>
-            <select data-quantity></select>
+            <select class="field" data-quantity></select>
           </label>
         </div>
         <p class="muted">
@@ -168,11 +168,7 @@ import { withBase } from '../lib/url';
 
   .comparewrap { margin-block-start: var(--space-xl); }
 
-  .field.inline {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2xs);
-  }
-
-  .field.inline select { min-width: 14rem; }
+  /* The pairing itself is `.labelled` in `global.css`; only the width of
+     this particular menu is this page's business. */
+  .labelled select { min-width: 14rem; }
 </style>
