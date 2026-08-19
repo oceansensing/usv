@@ -422,7 +422,12 @@ async function probeCadence(d) {
   const measured = [];
   for (const [start, end] of windows) {
     try {
-      const probe = await fetchTable(d.id, ['time'], { base: PMEL, start, end, retries: 1 });
+      /* `retries: 0`. A probe that fails is already handled — the vendor
+         default is the fallback and it is close enough to size a fetch by.
+         Retrying it costs two minutes per attempt on a dataset the server is
+         refusing, which is four minutes of every build spent re-asking a
+         question whose answer does not much matter. */
+      const probe = await fetchTable(d.id, ['time'], { base: PMEL, start, end, retries: 0 });
       const c = medianCadence(probe.time);
       if (Number.isFinite(c) && c > 0) measured.push(c);
     } catch {

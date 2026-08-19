@@ -176,17 +176,65 @@ import { withBase } from '../lib/url';
     }
   }
 
+  /* The filters are in the query string, so a filtered fleet is a link —
+     the same rule the vehicle and campaign pages follow. Restored before the
+     first render, because a form read after the fact would show everything
+     for a frame and then narrow. */
+  restore();
+
   form.addEventListener('input', read);
   document.querySelector('[data-reset]')!.addEventListener('click', () => {
     form.reset();
     read();
   });
+
+  function restore() {
+    const url = new URL(window.location.href);
+    for (const name of ['text', 'campaign', 'year', 'severity']) {
+      const value = url.searchParams.get(name);
+      if (!value) continue;
+      const el = form.elements.namedItem(name) as HTMLInputElement | HTMLSelectElement;
+      /* Assigning to a `<select>` that has no matching option does nothing at
+         all — silently, which is how a link's choice gets dropped. The menus
+         are filled above, so by here they have their options. */
+      el.value = value;
+    }
+    if (url.searchParams.get('active')) {
+      (form.elements.namedItem('activeOnly') as HTMLInputElement).checked = true;
+    }
+    const vendors = new Set(url.searchParams.get('vendor')?.split(',') ?? []);
+    for (const box of form.querySelectorAll<HTMLInputElement>('input[name="vendor"]')) {
+      box.checked = vendors.has(box.value);
+    }
+    const sort = url.searchParams.get('sort');
+    if (sort) {
+      sortDown = !sort.startsWith('-');
+      sortKey = sortDown ? sort : sort.slice(1);
+    }
+  }
+
+  function save() {
+    const url = new URL(window.location.href);
+    const set = (name: string, value: string) => {
+      if (value) url.searchParams.set(name, value);
+      else url.searchParams.delete(name);
+    };
+    set('text', filters.text);
+    set('campaign', filters.campaign);
+    set('year', filters.year);
+    set('severity', filters.severity);
+    set('active', filters.activeOnly ? '1' : '');
+    set('vendor', [...filters.vendors].sort().join(','));
+    set('sort', sortKey === 'end' && sortDown ? '' : `${sortDown ? '' : '-'}${sortKey}`);
+    window.history.replaceState(null, '', url);
+  }
   for (const th of document.querySelectorAll<HTMLElement>('[data-sort]')) {
     th.addEventListener('click', () => {
       const key = th.dataset.sort!;
       if (key === sortKey) sortDown = !sortDown;
       else { sortKey = key; sortDown = true; }
       render();
+      save();
     });
   }
 
@@ -199,6 +247,7 @@ import { withBase } from '../lib/url';
     filters.activeOnly = data.get('activeOnly') !== null;
     filters.vendors = new Set(data.getAll('vendor').map(String));
     render();
+    save();
   }
 
   function render() {
@@ -331,6 +380,69 @@ import { withBase } from '../lib/url';
     pointer-events: stroke;
     cursor: pointer;
   }
+
+  /* **Every rule below targets an element built at runtime.**
+     Astro scopes a page's styles by an attribute it stamps on the markup it
+     renders, and a `<tr>` created by `document.createElement` carries none —
+     so a scoped rule matches nothing on it. The first version had these in
+     the scoped block and the table came out with the dataset id running into
+     the vehicle name, the severity pills unpilled and the numeric columns
+     ragged: all the CSS present, none of it applying. Anchored on
+     `[data-rows]` so they cannot leak either. */
+  [data-rows] tr {
+    cursor: pointer;
+  }
+
+  [data-rows] tr:hover {
+    background: var(--bg-subtle);
+  }
+
+  [data-rows] td.num {
+    text-align: end;
+    font-variant-numeric: tabular-nums;
+  }
+
+  [data-rows] .sub {
+    display: block;
+    font-size: 0.78em;
+    color: var(--text-muted);
+  }
+
+  [data-rows] .tag {
+    display: inline-block;
+    padding: 0.05em 0.5em;
+    border-radius: 999px;
+    font-size: 0.8em;
+    font-family: var(--font-mono);
+    border: 1px solid var(--border-strong);
+    white-space: nowrap;
+  }
+
+  /* Severity is carried by a word as well as a colour — a badge that means
+     something only in colour means nothing to a reader who cannot see the
+     difference, and nothing at all in a printed figure. */
+  [data-rows] .tag.high { border-color: #b3261e; color: #b3261e; }
+  [data-rows] .tag.medium { border-color: #a15c00; color: #a15c00; }
+  [data-rows] .tag.low { color: var(--text-muted); }
+  [data-rows] .tag.note { color: var(--text-muted); border-style: dashed; }
+  [data-rows] .tag.clean { border-color: #1c6b3c; color: #1c6b3c; }
+  [data-rows] .tag.none { color: var(--text-muted); border-style: dotted; }
+
+  :root[data-theme='dark'] [data-rows] .tag.high,
+  :root[data-theme='dark'] [data-rows] .tag.medium,
+  :root[data-theme='dark'] [data-rows] .tag.clean { filter: brightness(1.6); }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) [data-rows] .tag.high,
+    :root:not([data-theme='light']) [data-rows] .tag.medium,
+    :root:not([data-theme='light']) [data-rows] .tag.clean { filter: brightness(1.6); }
+  }
+
+  [data-rows] .live {
+    font-family: var(--font-mono);
+    font-size: 0.78em;
+    color: #1c6b3c;
+  }
 </style>
 
 <style>
@@ -461,58 +573,5 @@ import { withBase } from '../lib/url';
     vertical-align: baseline;
   }
 
-  .num {
-    text-align: end;
-    font-variant-numeric: tabular-nums;
-  }
-
-  tbody tr {
-    cursor: pointer;
-  }
-
-  tbody tr:hover {
-    background: var(--bg-subtle);
-  }
-
-  .sub {
-    display: block;
-    font-size: 0.78em;
-    color: var(--text-muted);
-  }
-
-  .tag {
-    display: inline-block;
-    padding: 0.05em 0.5em;
-    border-radius: 999px;
-    font-size: 0.8em;
-    font-family: var(--font-mono);
-    border: 1px solid var(--border-strong);
-    white-space: nowrap;
-  }
-
-  /* Severity is carried by a word as well as a colour — a badge that means
-     something only in colour means nothing to a reader who cannot see the
-     difference, and nothing at all in a printed figure. */
-  .tag.high { border-color: #b3261e; color: #b3261e; }
-  .tag.medium { border-color: #a15c00; color: #a15c00; }
-  .tag.low { color: var(--text-muted); }
-  .tag.note { color: var(--text-muted); border-style: dashed; }
-  .tag.clean { border-color: #1c6b3c; color: #1c6b3c; }
-  .tag.none { color: var(--text-muted); border-style: dotted; }
-
-  :root[data-theme='dark'] .tag.high,
-  :root[data-theme='dark'] .tag.medium,
-  :root[data-theme='dark'] .tag.clean { filter: brightness(1.6); }
-
-  @media (prefers-color-scheme: dark) {
-    :root:not([data-theme='light']) .tag.high,
-    :root:not([data-theme='light']) .tag.medium,
-    :root:not([data-theme='light']) .tag.clean { filter: brightness(1.6); }
-  }
-
-  .live {
-    font-family: var(--font-mono);
-    font-size: 0.78em;
-    color: #1c6b3c;
-  }
+  .num { text-align: end; }
 </style>
