@@ -1,0 +1,42 @@
+{
+  "name": "usv",
+  "type": "module",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "description": "Uncrewed surface vehicle data visualization — Saildrone, Oshen and Chance Maritime on the NOAA PMEL ERDDAP",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "check": "astro check",
+    "astro": "astro",
+    "data:catalog": "node scripts/build-catalog.mjs",
+    "data:series": "node scripts/build-series.mjs",
+    "data": "npm run data:catalog && npm run data:series",
+    "check:docs": "node scripts/check-docs.mjs",
+    "check:vendored": "node scripts/check-vendored.mjs",
+    "test:erddap": "node scripts/test-erddap.mjs",
+    "test:vars": "node scripts/test-vars.mjs",
+    "test:qc": "node scripts/test-qc.mjs",
+    "test:derive": "node scripts/test-derive.mjs",
+    "test:plot": "node scripts/test-plot.mjs",
+    "test:contrast": "node scripts/test-contrast.mjs",
+    "test:pages": "node scripts/test-pages.mjs",
+    "verify": "npm run build && npm run check && npm run check:docs && npm run test:erddap && npm run test:vars && npm run test:qc && npm run test:derive && npm run test:plot && npm run test:contrast && npm run test:pages"
+  },
+  "dependencies": {
+    "@fontsource-variable/inter": "^5.3.0",
+    "@fontsource-variable/jetbrains-mono": "^5.2.8",
+    "astro": "^7.0.7",
+    "leaflet": "^1.9.4"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.9",
+    "@types/leaflet": "^1.9.22",
+    "jsdom": "^30.0.1",
+    "typescript": "^6.0.3"
+  }
+}

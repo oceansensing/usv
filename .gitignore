@@ -1,0 +1,17 @@
+# build output
+dist/
+.astro/
+node_modules/
+
+# The baked data. Regenerate with `npm run data`.
+#
+# Every series file is derived from the PMEL ERDDAP and nothing here is its
+# source of truth, so committing ~200 MB of JSON that changes whenever an
+# active mission reports would put the repository's whole weight in files
+# nobody reviews. CI builds them fresh and the deploy carries them; see
+# PLAN.md for the caching that keeps that build short.
+public/data/
+
+# scratch
+.DS_Store
+*.part
