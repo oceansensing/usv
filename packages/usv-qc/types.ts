@@ -83,8 +83,19 @@ export interface Report {
    * under about 100 days is checked at its native rate.
    */
   resolutionSeconds: number;
-  /** The vehicle's own reporting interval, for comparison with the above. */
+  /**
+   * The vehicle's own reporting interval, for comparison with the above.
+   *
+   * Probed from the record before anything was decimated. **This is the
+   * comparison that says what could have been found** — the spacing of the
+   * rows the checks were handed equals `resolutionSeconds` whenever the fetch
+   * was decimated, so comparing against that answers itself.
+   */
   cadenceSeconds: number;
+  /** The spacing of the rows the checks actually ran over. Equal to
+      `resolutionSeconds` on a decimated fetch; recorded so a reader can see
+      both numbers rather than infer one. */
+  sampledCadenceSeconds: number;
   /** Rows the checks ran over. */
   rows: number;
   /** Epoch seconds the record was fetched. */

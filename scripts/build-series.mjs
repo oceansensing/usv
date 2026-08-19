@@ -320,7 +320,12 @@ async function buildOne(d) {
     resolutionSeconds: table.resolution.kind === 'decimated'
       ? table.resolution.minutes * 60
       : nativeCadence,
+    /* The spacing of the rows being checked, which `gaps` and the sparse test
+       judge against — and, separately, the rate the vehicle actually reports
+       at, which is the only honest thing to compare the fetch resolution
+       with. They are equal only when the fetch ran at full rate. */
     cadenceSeconds: seriesCadence,
+    nativeCadenceSeconds: nativeCadence,
     fetched,
   });
 

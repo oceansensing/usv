@@ -275,14 +275,28 @@ replaced estimates with.
 | a chunk, inflated in the tab | 9,421 rows × 29 columns in **143 ms** |
 | how it is served | `application/gzip`, `content-encoding` absent |
 
-The 1.28 B/value figure re-predicts the archive to **0.66 GB total**, largest
-season 2021 at **168 MB** — under the earlier 794 MB projection, which was
-taken from a single month of Saildrone data before any shard existed. The new
-estimate reproduces the real shard to **1.009×** in aggregate, and 0.99–1.04×
-on the Saildrone records that carry most of the bytes. It is *not* reliable
-per record: on the Oshens it ranges 0.31× to 2.14×, because their cadence
-changes mid-mission and `span / cadence` is then a bad count of rows. Both
-conclusions the sharding rests on hold with more room than they were given.
+Then `usv-data-2021` — the archive's *largest* season — was built and read
+back the same way, which is what the 2026 figures needed:
+
+| | 2026 | 2021 |
+|---|---|---|
+| what it is | short Oshen runs, many small files | long Saildrone runs |
+| records / chunks | 24 / 74 | 21 / **437** |
+| rows | 413,498 | **4,411,931** |
+| **gzipped** | 15.66 MB at **1.28 B/value** | 118.38 MB at **0.77 B/value** |
+
+**The two encodings differ by 40 %, and 0.77 is the one to plan with** — every
+large season is long Saildrone records, and 1.28 was pessimism from a season
+unlike the rest. It puts the whole archive near **0.5 GB**, against the
+earlier 794 MB projection taken from a single month before any shard existed.
+The largest season is now measured rather than estimated, at 118 MB — five
+times under a limit that applies per repository anyway.
+
+Estimating from the catalog reproduces the aggregate to about 1.2×, and is
+*not* reliable per record: on the Oshens it ranges 0.31× to 2.14×, because
+their cadence changes mid-mission and `span / cadence` is then a bad count of
+rows. Both conclusions the sharding rests on hold with more room than they
+were given.
 
 **Closed chunks come back byte-identical across rebuilds**, checked by
 refetching four of sd1030's after a rebuild had moved the fifth. That is the
@@ -561,3 +575,21 @@ Each was written, run, and found to be wrong. Each now has a gate.
   and its last week runs at 600. Nothing reads the field, so nothing is
   wrong on screen; it is recorded here because the next thing to read it will
   believe it.
+- **The note that says what the checks could have seen said the opposite, on
+  46 records.** `coverageNote` compares the resolution the fetch ran at
+  against the vehicle's reporting interval — and it was handed, as that
+  interval, the spacing of the rows it had just been given. On a decimated
+  fetch those are the same number *by construction*, so the branch that warns
+  "a single-sample artifact finer than that was not looked for" **could never
+  fire**. Every record fetched at 2 or 5 minutes against a vehicle reporting
+  every minute — 46 of 152, most of 2017–2024 — told the reader its
+  one-minute artifacts had been looked for. The one sentence whose whole job
+  is to stop the page implying it checked more than it did was implying
+  exactly that. Found by reading the live 2021 shard: the page said `sd1065`
+  ran at native rate while its own series file recorded `resolutionSeconds:
+  300` beside `cadenceSeconds: 60`. *Gate:* `test:qc` now covers
+  `coverageNote`, which nothing had — it is reached only through `run()`, and
+  the suite tests the individual checks.
+- **"against a vehicle reporting every 1 minutes."** Rounding an interval to
+  whole minutes, on an archive whose commonest cadence is one minute. Only
+  ever visible on the branch that could not fire.

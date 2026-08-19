@@ -31,7 +31,25 @@ export interface RunInput {
   lon: Float64Array;
   /** The interval the fetch actually ran at, in seconds. */
   resolutionSeconds: number;
+  /**
+   * The spacing of the rows handed in, in seconds.
+   *
+   * **Not the vehicle's rate** where the fetch was decimated — it is the rate
+   * of the data in hand, which is what `gaps` and the sparse-column test have
+   * to judge against. A gap is a gap relative to the samples either side of
+   * it, not relative to a rate nothing here was sampled at.
+   */
   cadenceSeconds: number;
+  /**
+   * The vehicle's own reporting interval, in seconds, probed before any
+   * decimation.
+   *
+   * Kept apart from `cadenceSeconds` because the two are equal only when the
+   * fetch ran at full rate, and **the one question that needs the difference
+   * is the only one that was asking the wrong field**: whether the checks
+   * could have seen a single-sample artifact. See `coverageNote`.
+   */
+  nativeCadenceSeconds: number;
   /** Epoch seconds this build fetched the record. */
   fetched: number;
 }
@@ -65,7 +83,7 @@ const RESTS_AT_ZERO = new Set([
 export function run(input: RunInput): Report {
   const {
     info, resolved, vendor, time, columns, lat, lon,
-    resolutionSeconds, cadenceSeconds, fetched,
+    resolutionSeconds, cadenceSeconds, nativeCadenceSeconds, fetched,
   } = input;
 
   const findings: Finding[] = [];
@@ -130,7 +148,8 @@ export function run(input: RunInput): Report {
   return {
     findings: rank(mergeSimultaneousDropouts(findings)),
     resolutionSeconds,
-    cadenceSeconds,
+    cadenceSeconds: nativeCadenceSeconds,
+    sampledCadenceSeconds: cadenceSeconds,
     rows: time.length,
     fetched,
   };
@@ -216,13 +235,28 @@ export function tally(findings: readonly Finding[]): Record<Check, number> {
 export function coverageNote(report: Report): string {
   const { resolutionSeconds, cadenceSeconds } = report;
   if (!(cadenceSeconds > 0)) return 'The vehicle\'s reporting interval could not be measured.';
+  /* **Against the vehicle's rate, not the sampled one.** Compared with the
+     spacing of the rows the checks were handed, this is true by construction
+     — decimated data is exactly as coarse as the decimation asked for — so
+     the coarse branch below could never fire, and 46 of the archive's 152
+     records told a reader their one-minute artifacts had been looked for
+     when the checks ran at two or five minutes. */
   const native = resolutionSeconds <= cadenceSeconds * 1.01;
   if (native) {
     return 'These checks ran at the rate the vehicle reported, so a single-sample '
       + 'artifact is visible to them.';
   }
-  return `These checks ran at ${Math.round(resolutionSeconds / 60)}-minute resolution `
-    + `against a vehicle reporting every ${Math.round(cadenceSeconds / 60)} minutes, `
+  return `These checks ran at ${interval(resolutionSeconds)} resolution `
+    + `against a vehicle reporting every ${interval(cadenceSeconds)}, `
     + 'because the whole record at full rate is past this build\'s fetch budget. '
     + 'A single-sample artifact finer than that was not looked for.';
+}
+
+/** A reporting interval, written the way it is spoken — and never "every 1
+    minutes", which is what rounding to whole minutes used to produce on the
+    one-minute records that are most of this archive. */
+function interval(seconds: number): string {
+  if (seconds < 60) return `${Math.round(seconds)} seconds`;
+  const m = seconds / 60;
+  return m === 1 ? 'minute' : `${Number.isInteger(m) ? m : m.toFixed(1)} minutes`;
 }

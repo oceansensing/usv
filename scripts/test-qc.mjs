@@ -19,7 +19,7 @@ import fs from 'node:fs';
 import { check, done, near, ok, section } from './lib/check.mjs';
 import { parseJsonlCsv } from '../packages/erddap-pmel/index.ts';
 import {
-  cadence, directionConvention, dropout, gaps, haversine, MAX_MARKS,
+  cadence, coverageNote, directionConvention, dropout, gaps, haversine, MAX_MARKS,
   mergeSimultaneousDropouts, PLAUSIBLE, position, range, rank,
   reportingInterval, robustScale, sample, silent, spikes, stuck, tally, worst,
 } from '../packages/usv-qc/index.ts';
@@ -528,6 +528,57 @@ section('marks are capped, and the count is not');
   for (let i = 2; i < 4000; i += 3) p[i] += 20;
   check('a record that is a third excursions reports none',
     spikes(t, p, 'air_pressure', 'hPa').length, 0);
+}
+
+/* ------------------------------------------------------------------------ */
+section('the note that says what could have been found');
+
+/*
+ * This sentence is the only thing standing between a reader and the belief
+ * that every check ran on every sample. It shipped broken: it compared the
+ * fetch resolution against the spacing of the rows it was handed, which on a
+ * decimated fetch is the same number by construction — so the coarse branch
+ * could never fire, and **46 of the archive's 152 records told a reader their
+ * one-minute artifacts had been looked for** when the checks ran at two or
+ * five minutes. It now compares against the vehicle's own rate.
+ */
+{
+  const report = (resolutionSeconds, cadenceSeconds) => ({
+    findings: [], resolutionSeconds, cadenceSeconds,
+    sampledCadenceSeconds: resolutionSeconds, rows: 1000, fetched: 1_786_665_600,
+  });
+
+  /* The case that was wrong: sd1041_hurricane_2024, fetched at 5 minutes
+     against a vehicle reporting every minute. */
+  const coarse = coverageNote(report(300, 60));
+  ok('a 5-minute fetch of a 1-minute vehicle does not claim native rate',
+    !/at the rate the vehicle reported/.test(coarse), coarse);
+  ok('  it names the resolution it ran at', /5 minutes resolution/.test(coarse), coarse);
+  ok('  and the rate it did not reach', /every minute/.test(coarse), coarse);
+  ok('  and says what that means was not looked for',
+    /not looked for/.test(coarse));
+
+  /* Never "every 1 minutes", which is what rounding to whole minutes gave on
+     the one-minute records that are most of this archive. */
+  ok('a one-minute vehicle is not "every 1 minutes"', !/1 minutes/.test(coarse), coarse);
+  ok('and a two-minute fetch reads properly too',
+    /2 minutes resolution/.test(coverageNote(report(120, 60))), coverageNote(report(120, 60)));
+
+  /* And the branch that should fire when it is earned. */
+  const native = coverageNote(report(60, 60));
+  ok('a full-rate fetch does claim native rate',
+    /at the rate the vehicle reported/.test(native), native);
+  ok('and so does one finer than the vehicle reports',
+    /at the rate the vehicle reported/.test(coverageNote(report(60, 300))));
+
+  /* The sampled spacing must not be what the comparison uses: passing the
+     decimated spacing as the vehicle's rate is exactly the old bug. */
+  ok('the comparison is against the vehicle, not the rows in hand',
+    coverageNote(report(300, 60)) !== coverageNote(report(300, 300)),
+    'a 5-minute fetch of a 1-minute vehicle must not read like a 5-minute one');
+
+  ok('an unmeasurable cadence says so',
+    /could not be measured/.test(coverageNote(report(300, NaN))));
 }
 
 done();
