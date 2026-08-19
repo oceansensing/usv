@@ -22,9 +22,11 @@ import { makeTrack, type Track } from './track.ts';
 import { makeTrackLegend } from './track-legend.ts';
 import { plottable, type Plottable } from './variables.ts';
 import {
-  duration, isoDay, isoMinute, loadCatalog, loadSeries, since,
-  type CatalogEntry, type Finding, type Series,
+  canReadDetail, duration, isoDay, isoMinute, loadCatalog, loadChunk,
+  loadSeason, loadSeries, since, stitch,
+  type CatalogEntry, type Chunk, type DetailRecord, type Finding, type Series,
 } from './data.ts';
+import { chunksFor, shardFor } from '@c4po/usv-vars';
 import { PMEL, SEVERITIES } from '../config.ts';
 import { withBase } from './url.ts';
 
@@ -65,6 +67,7 @@ export function makeVehiclePage(root: Document | HTMLElement): VehiclePage {
   const siblingsWrap = at<HTMLElement>('[data-siblings-wrap]');
   const siblingsHead = at<HTMLElement>('[data-siblings-head]');
   const contentEl = at<HTMLElement>('[data-content]');
+  const detailNote = at<HTMLElement>('[data-detail-note]');
   const trackWrap = at<HTMLElement>('[data-track-wrap]');
   const noTrackEl = at<HTMLElement>('[data-no-track]');
   const interleavedEl = at<HTMLElement>('[data-interleaved]');
@@ -74,15 +77,44 @@ export function makeVehiclePage(root: Document | HTMLElement): VehiclePage {
       is always current and a series written before this field existed does
       not carry it. */
   let multiVehicle = false;
+  /** This record's entry in its season shard, when the shard is published
+      and the browser can inflate it. Absent means the page shows the
+      overview and says so. */
+  let detail: DetailRecord | undefined;
+  let shard = '';
+  /**
+   * The shard lookup, so a window can wait for it.
+   *
+   * A window restored from the URL is applied while `findDetail` is still
+   * fetching the season index, so a `loadWindow` that only reads `detail`
+   * finds nothing and silently leaves the reader on the overview — the
+   * window applies, the caption narrows, and the promised full rate never
+   * arrives.
+   */
+  let detailReady: Promise<void> = Promise.resolve();
+  /** The window's full-rate columns, replacing the overview's while a window
+      is set. Null when the whole record is shown. */
+  let detailSource: Source | null = null;
   let variables: Plottable[] = [];
   let track: Track | null = null;
   let scatter: Figure | null = null;
   const stack = new Map<string, { figure: Figure; root: HTMLElement }>();
   let chosen: string[] = [];
 
-  const source = (): Source | null => (series
-    ? { columns: series.columns, rows: series.rows, variables, timeVar: 'time' }
-    : null);
+  /**
+   * What the figures draw.
+   *
+   * The overview by default — eight thousand points, already in hand. The
+   * window's full-rate chunks once a reader has narrowed to a stretch and
+   * they have arrived. Same shape either way, so no figure knows which it
+   * has.
+   */
+  const source = (): Source | null => {
+    if (detailSource) return detailSource;
+    return series
+      ? { columns: series.columns, rows: series.rows, variables, timeVar: 'time' }
+      : null;
+  };
 
   const legend = makeTrackLegend(root, {
     track: () => track,
@@ -180,6 +212,8 @@ export function makeVehiclePage(root: Document | HTMLElement): VehiclePage {
     drawStack();
     drawScatter();
 
+    detailReady = findDetail(id, doc.campaign);
+
     at<HTMLButtonElement>('[data-window-clear]')
       .addEventListener('click', () => clearWindow());
 
@@ -194,6 +228,75 @@ export function makeVehiclePage(root: Document | HTMLElement): VehiclePage {
 
   const has = (key: string): boolean => Boolean(series?.columns.has(key))
     && variables.some((v) => v.name === key && v.section);
+
+  /* ----------------------------------------------------------- detail -- */
+
+  /**
+   * Whether this record has a full-rate tier, and say so either way.
+   *
+   * The overview is eight thousand points however long the mission; the
+   * detail tier is every sample the instruments reported. A reader looking
+   * at a storm passage wants the second, and a reader looking at a season
+   * wants the first — so the page opens on the overview and fetches the
+   * weeks a window covers, which is one request of about 380 KB per week.
+   */
+  async function findDetail(id: string, campaign: string): Promise<void> {
+    shard = shardFor(campaign);
+    if (!canReadDetail()) {
+      detailNote.textContent = 'Full-rate data needs a browser with '
+        + 'DecompressionStream; this one shows the overview only.';
+      return;
+    }
+    const index = await loadSeason(shard);
+    detail = index?.records.find((r) => r.id === id);
+    if (!detail) {
+      detailNote.textContent = `Full rate is not published for this season yet — `
+        + `${series!.doc.rows.toLocaleString()} points shown, drawn from `
+        + `${series!.doc.fetchedRows.toLocaleString()} fetched.`;
+      return;
+    }
+    detailNote.textContent = `${detail.rows.toLocaleString()} samples at full rate are `
+      + 'available: narrow to a stretch and the figures reload at the rate the '
+      + 'instruments reported.';
+  }
+
+  /** Load the weeks a window covers, and hand them to the figures. */
+  async function loadWindow(from: number, to: number): Promise<void> {
+    await detailReady;
+    if (!detail) return;
+    const wanted = chunksFor(from, to).filter((c) => detail!.chunks.includes(c));
+    if (!wanted.length) return;
+
+    detailNote.textContent = `loading ${wanted.length} week`
+      + `${wanted.length === 1 ? '' : 's'} at full rate…`;
+    let chunks: Chunk[];
+    try {
+      chunks = await Promise.all(wanted.map((c) => loadChunk(shard, detail!.id, c)));
+    } catch (error) {
+      detailNote.textContent = `Full rate could not be loaded (${(error as Error).message}). `
+        + 'The overview is still shown.';
+      return;
+    }
+    /* A window chosen while a previous one was loading: only the current one
+       may draw. */
+    const url = new URL(window.location.href);
+    if (Number(url.searchParams.get('t0')) !== Math.round(from)) return;
+
+    const { rows, columns } = stitch(chunks);
+    detailSource = { columns, rows, variables, timeVar: 'time' };
+    detailNote.textContent = `${rows.toLocaleString()} samples at full rate across `
+      + `${wanted.length} week${wanted.length === 1 ? '' : 's'}.`;
+    redraw();
+  }
+
+  /** Push whatever `source()` now returns into every figure on the page. */
+  function redraw(): void {
+    const s = source();
+    if (!s) return;
+    for (const [, entry] of stack) entry.figure.update(s);
+    scatter?.update(s);
+    legend.paint();
+  }
 
   /* ------------------------------------------------------------ facts -- */
 
@@ -358,16 +461,29 @@ export function makeVehiclePage(root: Document | HTMLElement): VehiclePage {
     url.searchParams.set('t1', String(Math.round(to)));
     window.history.replaceState(null, '', url);
     showWindow(from, to);
+    /* **The window is what buys full rate.** A reader who has narrowed to a
+       stretch has said which weeks they care about, and those are the only
+       ones worth a request. */
+    void loadWindow(from, to);
   }
 
   /** Clear it, on every panel at once. */
   function clearWindow(): void {
+    /* Back to the overview: the full-rate columns cover one stretch and
+       drawing the whole record from them would show only that stretch. */
+    detailSource = null;
+    if (detail) {
+      detailNote.textContent = `${detail.rows.toLocaleString()} samples at full rate are `
+        + 'available: narrow to a stretch and the figures reload at the rate the '
+        + 'instruments reported.';
+    }
     for (const [, entry] of stack) setWindow(entry.root, NaN, NaN);
     const url = new URL(window.location.href);
     url.searchParams.delete('t0');
     url.searchParams.delete('t1');
     window.history.replaceState(null, '', url);
     showWindow(NaN, NaN);
+    redraw();
   }
 
   /** A `datetime-local` has no zone and `figure.ts` reads it as UTC, which is

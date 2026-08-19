@@ -14,8 +14,9 @@ import fs from 'node:fs';
 import { check, done, ok, section } from './lib/check.mjs';
 import { parseInfo } from '../packages/erddap-pmel/index.ts';
 import {
-  BY_KEY, conversionFor, DEFAULT_STACK, isKnownUnit, QUANTITIES,
-  resolveDataset, resolveVariable, sensorOf, splitStatistic, unitFault,
+  BY_KEY, CHUNK_SECONDS, chunkOf, chunkPath, chunksFor, chunkSpan,
+  conversionFor, DEFAULT_STACK, isKnownUnit, QUANTITIES, resolveDataset,
+  resolveVariable, seasonOf, sensorOf, shardFor, splitStatistic, unitFault,
 } from '../packages/usv-vars/index.ts';
 import { COLORMAPS } from '../packages/plot/index.ts';
 
@@ -365,6 +366,65 @@ for (const [file, id, expect] of [
   const wind = r.primary.get('wind_speed');
   check('while its wind really is converted', wind.conversion.converts, true);
   check('from knots', wind.publishedUnits, 'knot');
+}
+
+/* ------------------------------------------------------------------------ */
+section('where a record\'s full-rate data lives');
+
+/* The site is one repository; the full-rate data is 794 MB against a 1 GB
+   Pages limit, so it lives one repository per season. They are project sites
+   under the same organisation and custom domain, so they are the *same
+   origin* as the site — which is why the detail tier costs no CORS and no
+   widening of `connect-src 'self'`. */
+check('a 2026 record', shardFor('hurricane-2026'), 'usv-data-2026');
+check('a 2017 one', shardFor('tpos-2017'), 'usv-data-2017');
+/* A deployment that ran into January belongs to the season it launched in,
+   which its campaign already records. */
+check('and one that ran into the new year', shardFor('hurricane-2024'), 'usv-data-2024');
+check('a campaign with no year is not silently filed under one',
+  shardFor('other'), 'usv-data-undated');
+check('the season alone', seasonOf('bering-pollock-2020'), '2020');
+
+/* ------------------------------------------------------------------------ */
+section('chunking the full-rate data');
+
+check('a week', CHUNK_SECONDS, 7 * 86400);
+
+/* Counted from the epoch, not from the record's own start, so a boundary is
+   the same instant for every record and does not move when a mission's first
+   row changes — a record that gains earlier data keeps every chunk it had. */
+{
+  const t = Date.parse('2026-08-14T00:00:00Z') / 1000;
+  check('a timestamp lands in a chunk', chunkOf(t), Math.floor(t / (7 * 86400)));
+  const span = chunkSpan(chunkOf(t));
+  ok('whose span contains it', span.from <= t && t < span.to,
+    `${span.from} <= ${t} < ${span.to}`);
+  check('and is exactly a week wide', span.to - span.from, CHUNK_SECONDS);
+  ok('and abuts the next without overlap',
+    chunkSpan(chunkOf(t) + 1).from === span.to);
+}
+
+{
+  const day = 86400;
+  const t0 = 1_786_665_600;
+  check('a window inside one chunk needs one', chunksFor(t0, t0 + 3600).length, 1);
+  /* Inclusive of both ends: a reader's window is a closed interval and the
+     sample at its last instant is one they asked for. */
+  const three = chunksFor(t0, t0 + 15 * day);
+  ok('a fifteen-day window needs three', three.length === 3, `${three}`);
+  ok('and they are consecutive', three.every((c, i) => i === 0 || c === three[i - 1] + 1));
+  check('a backwards window needs none', chunksFor(t0 + 100, t0).length, 0);
+  check('an unreadable one likewise', chunksFor(NaN, t0).length, 0);
+  check('an instant needs the chunk it is in', chunksFor(t0, t0).length, 1);
+}
+
+/* A sibling project site under the same domain, so the path climbs out of
+   this site's base and back down into the shard's. */
+{
+  const p = chunkPath('usv-data-2026', 'sd1030_hurricane_2026', 12345);
+  check('a chunk path', p, '../usv-data-2026/sd1030_hurricane_2026/12345.json.gz');
+  ok('and an id with awkward characters is escaped',
+    chunkPath('usv-data-2026', 'a b/c', 1).includes('a%20b%2Fc'));
 }
 
 done();

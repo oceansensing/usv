@@ -204,6 +204,137 @@ function toSeries(doc: SeriesDoc): Series {
   return { doc, columns, rows };
 }
 
+/* ---------------------------------------------------------------- detail -- */
+
+/** One record's entry in a season shard's index. */
+export interface DetailRecord {
+  id: string;
+  vehicle: string;
+  campaign: string;
+  rows: number;
+  cadenceSeconds: number;
+  /** Which chunks exist. Asked before any is fetched — a 404 for a week the
+      vehicle was not reporting is indistinguishable in a browser from the
+      shard being down. */
+  chunks: number[];
+  variables: string[];
+  fetched: number;
+}
+
+export interface SeasonIndex {
+  shard: string;
+  season: string;
+  built: number;
+  source: string;
+  records: DetailRecord[];
+}
+
+const seasonCache = new Map<string, Promise<SeasonIndex | null>>();
+
+/**
+ * A season shard's index, or null where the shard is not published.
+ *
+ * Null rather than a throw: a season whose shard does not exist yet is the
+ * ordinary state of this site while the archive is backfilled, and the page
+ * has an overview to show either way. It says full rate is unavailable
+ * rather than showing an error.
+ */
+export function loadSeason(shard: string): Promise<SeasonIndex | null> {
+  let hit = seasonCache.get(shard);
+  if (!hit) {
+    hit = fetch(`${withBase('/')}../${shard}/season.json`)
+      .then((r) => (r.ok ? r.json() as Promise<SeasonIndex> : null))
+      .catch(() => null);
+    seasonCache.set(shard, hit);
+  }
+  return hit;
+}
+
+export interface Chunk {
+  id: string;
+  chunk: number;
+  from: number;
+  to: number;
+  rows: number;
+  time: Array<number | null>;
+  lat: Array<number | null>;
+  lon: Array<number | null>;
+  columns: Record<string, Array<number | null>>;
+}
+
+const chunkCache = new Map<string, Promise<Chunk>>();
+
+/**
+ * Whether this browser can read the detail tier at all.
+ *
+ * The chunks are stored already compressed, because a static host does not
+ * compress a file type it does not recognise and the archive only fits under
+ * the 1 GB limit gzipped. Inflating them needs `DecompressionStream`, which
+ * every current browser has and some older ones do not — so the page asks
+ * before offering full rate, rather than failing at the moment a reader
+ * clicks.
+ */
+export function canReadDetail(): boolean {
+  return typeof DecompressionStream === 'function';
+}
+
+/** One week of one record, at the rate the instruments reported. */
+export function loadChunk(shard: string, id: string, chunk: number): Promise<Chunk> {
+  const key = `${shard}/${id}/${chunk}`;
+  let hit = chunkCache.get(key);
+  if (!hit) {
+    hit = (async () => {
+      const url = `${withBase('/')}../${shard}/${encodeURIComponent(id)}/${chunk}.json.gz`;
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`${id} chunk ${chunk}: ${response.status}`);
+      if (!canReadDetail()) throw new Error('this browser cannot inflate the detail tier');
+      /* The host serves these under `application/gzip` and does not decode
+         them, verified against the live site — so the bytes that arrive are
+         the bytes that were written, and this is what turns them back into
+         JSON. */
+      const stream = response.body!.pipeThrough(new DecompressionStream('gzip'));
+      return await new Response(stream).json() as Chunk;
+    })();
+    chunkCache.set(key, hit);
+  }
+  return hit;
+}
+
+/**
+ * Several chunks, stitched into the same column shape a `Series` carries.
+ *
+ * Ordered by chunk, and rows within a chunk are left in the order the record
+ * published them — three Oshen records step backwards in time between
+ * consecutive rows, and reordering them here would hide that from the
+ * quality report rather than from the reader.
+ */
+export function stitch(chunks: readonly Chunk[]): {
+  rows: number; columns: Map<string, Float64Array>;
+} {
+  const ordered = [...chunks].sort((a, b) => a.chunk - b.chunk);
+  const rows = ordered.reduce((n, c) => n + c.rows, 0);
+  const names = new Set<string>(['time', 'lat', 'lon']);
+  for (const c of ordered) for (const k of Object.keys(c.columns)) names.add(k);
+
+  const columns = new Map<string, Float64Array>();
+  for (const name of names) {
+    const out = new Float64Array(rows);
+    let at = 0;
+    for (const c of ordered) {
+      const src = name === 'time' ? c.time
+        : name === 'lat' ? c.lat
+          : name === 'lon' ? c.lon
+            : c.columns[name];
+      for (let i = 0; i < c.rows; i++) {
+        const v = src?.[i];
+        out[at++] = v === null || v === undefined ? NaN : v;
+      }
+    }
+    columns.set(name, out);
+  }
+  return { rows, columns };
+}
+
 /* ---------------------------------------------------------------- dates -- */
 
 /** `2026-08-14`. The clock is not shown where a day is the question. */

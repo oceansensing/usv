@@ -26,6 +26,10 @@ export {
 export type { Resolved, ResolvedDataset, Statistic } from './resolve.ts';
 
 export {
+  seasonOf, shardFor, chunkOf, chunkSpan, chunksFor, chunkPath, CHUNK_SECONDS,
+} from './shard.ts';
+
+export {
   u10Neutral, windStress, WIND_HEIGHT, SURFACE_DBAR,
   dewpoint, saturationVapourPressure, specificHumidity,
   seawater, referenceSalinity, anomalyApplied, UPS,

@@ -143,6 +143,20 @@ points and rounds each column to what its instrument resolves.
 - **`/about/`** — the sources, what was converted, what was computed here,
   and what the checks do not claim.
 
+### The full-rate tier
+
+`npm run data:detail -- --season 2026` writes weekly, pre-gzipped chunks plus
+a `season.json` index into a directory a **shard repository** publishes as
+its own Pages site — `oceansensing.org/usv-data-2026/`, the same origin as
+the site, so no CORS and no CSP change.
+
+A vehicle page opens on the overview and says how many full-rate samples
+exist; narrowing to a stretch fetches the weeks it covers, about 380 KB each,
+and every figure redraws at the rate the instruments reported. Verified end
+to end against a local copy of the production layout: a three-day window on
+`sd1030_hurricane_2026` goes from 720 drawn points to **4,319** — 3 × 1440
+minutes — with 4,319 vertices actually in the SVG.
+
 ### The gates
 
 **683 offline checks** in eight suites, chained by `npm run verify`. Nothing
@@ -206,6 +220,12 @@ path, so rebuilding is the only way the site gets fresher.
   string; ERDDAP's `distinct()` would give the values in one small request
   per record. Worth doing: `saildrone_arctic_2018` is the only record of the
   2018 Arctic met and ocean data, and it is one of the thirteen.
+- **Only 2026 is sharded.** The other nine seasons need their repositories
+  created and built — the same command with a different `--season`, which is
+  the point of doing one first.
+- **The QC still runs on the overview's resolution**, not the full-rate tier.
+  Now that every sample is fetched anyway, a one-minute spike in a 2021
+  record could be looked for; today the page correctly says it was not.
 - **`orderByClosest` alignment is assumed to hold for every sensor.** It was
   measured on the Saildrone SBE37 at five minutes. A sensor reporting on some
   other period — three minutes, say — would be sampled between its rows by

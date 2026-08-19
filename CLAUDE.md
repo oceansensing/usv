@@ -206,6 +206,47 @@ int16 quantization is 18 % smaller again and is not used: it makes every
 value a lie at the last digit, needs a scale and offset per column to be
 read at all, and buys 57 KB on the largest file in the archive.
 
+### Two tiers, and why the second lives in another repository
+
+The overview is 8,000 points however long the mission — one small file the
+vehicle page opens with. **The full-rate tier is every sample the instruments
+reported**, in weekly chunks, fetched only for the stretch a reader has
+windowed into.
+
+It cannot sit beside the site. Measured on a real month of 1-minute data —
+44,401 rows × 41 columns — the archive at full rate is **3.96 GB as plain
+JSON and 794 MB gzipped**, against GitHub Pages' **1 GB published-site
+limit**, which the documentation applies with no distinction for repository
+visibility or plan.
+
+| | stored | transferred |
+|---|---|---|
+| plain files, Pages gzips | 3.96 GB ✗ | 0.79 GB |
+| **pre-gzipped, browser inflates** | **0.79 GB ✓** | 0.79 GB |
+| int16 delta-coded binary | 0.69 GB | 0.69 GB |
+
+So the chunks are stored **already compressed** and inflated in the tab with
+`DecompressionStream` — the same mechanism, and the same reason, as the
+sibling glider site's TEOS-10 atlas. Verified against the live host: a `.gz`
+comes back byte-identical under `content-type: application/gzip`.
+
+A binary format buys only **13 %** gzipped at this resolution and costs a
+decode step and readability, so JSON stays.
+
+**One repository per season**, each a Pages project site. `gliders` and `usv`
+already prove the arrangement: project repositories under an organisation
+whose Pages custom domain is set serve *under that domain*, so
+`oceansensing/usv-data-2026` serves at `oceansensing.org/usv-data-2026/` —
+**the same origin as the site**. The whole tier therefore costs no CORS and
+no widening of `connect-src 'self'`.
+
+Per season because **a closed season is immutable**: once 2024 ended its data
+cannot change, so its shard is built once and never rebuilt or re-uploaded,
+and only the current season churns. The busiest season on record is 2021 at
+194 MB — five times under the limit — so `shardFor` gaining a vendor term is
+the change to make when a season needs it and not before. It is one function
+so that change is local.
+
 ### The point budget
 
 Each dataset is decimated to **at most 8,000 time steps**, chosen from the

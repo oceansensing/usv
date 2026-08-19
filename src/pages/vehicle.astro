@@ -75,6 +75,7 @@ import { withBase } from '../lib/url';
         These points step between several vehicles — see above. A trace here
         is not one instrument's record.
       </p>
+      <p class="muted detail-note" data-detail-note></p>
       <p class="window" data-window hidden>
         <span class="eyebrow">window</span>
         <span class="mono" data-window-label></span>
@@ -234,6 +235,11 @@ import { withBase } from '../lib/url';
      banner showed on every page whether a window was set or not. Every
      element this site toggles with `hidden` and also gives a `display` to
      needs this line. */
+  .detail-note {
+    font-size: var(--text-sm);
+    margin-block: var(--space-2xs) 0;
+  }
+
   .window[hidden] {
     display: none;
   }

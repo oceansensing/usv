@@ -16,3 +16,4 @@ public/data/
 .DS_Store
 *.part
 .cache/
+detail/
