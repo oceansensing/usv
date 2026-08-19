@@ -63,6 +63,7 @@ export function makeVehiclePage(root: Document | HTMLElement): VehiclePage {
   const windowLabel = at<HTMLElement>('[data-window-label]');
   const siblingsEl = at<HTMLElement>('[data-siblings]');
   const siblingsWrap = at<HTMLElement>('[data-siblings-wrap]');
+  const contentEl = at<HTMLElement>('[data-content]');
 
   let series: Series | null = null;
   let variables: Plottable[] = [];
@@ -87,12 +88,32 @@ export function makeVehiclePage(root: Document | HTMLElement): VehiclePage {
     try {
       series = await loadSeries(id);
     } catch (error) {
+      /* One record in the archive reaches this: the high-resolution Chance
+         product, which PMEL will not serve to the build. The page says so
+         and — the part that matters — sends the reader to the ERDDAP, where
+         the data actually is. A dead end that names a file is worse than no
+         page at all. */
+      document.title = `${id} · USV`;
+      titleEl.textContent = id;
+      subtitleEl.textContent = 'This record has no series on this site.';
       errorEl.hidden = false;
-      errorEl.textContent = `Could not load ${id}: ${(error as Error).message}. `
-        + 'The record may not have been built — see the fleet page.';
+      errorEl.replaceChildren();
+      const p = document.createElement('p');
+      p.append('The build could not fetch this record from PMEL, so there is nothing '
+        + 'here to draw. Everything about it is still on ');
+      const a = document.createElement('a');
+      a.href = `${PMEL}/tabledap/${encodeURIComponent(id)}.html`;
+      a.textContent = 'its own ERDDAP page';
+      p.append(a, ', which is where this site got the rest.');
+      const why = document.createElement('p');
+      why.className = 'muted';
+      why.textContent = `The fetch reported: ${(error as Error).message}`;
+      errorEl.append(p, why);
+      contentEl.hidden = true;
       return;
     }
     errorEl.hidden = true;
+    contentEl.hidden = false;
 
     const doc = series.doc;
     variables = plottable(doc.variables);

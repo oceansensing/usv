@@ -21,8 +21,15 @@ import { withBase } from '../lib/url';
     </div>
     <p class="subtitle" data-subtitle></p>
 
-    <p class="error" data-error hidden></p>
+    <div class="error" data-error hidden></div>
 
+    <!--
+      Everything the record itself fills. Hidden as a block when the series
+      could not be loaded: a page that says "there is nothing here to draw"
+      and then shows five empty figures is telling the reader two different
+      things at once.
+    -->
+    <div data-content>
     <div class="figure-full split">
       <TrackFigure />
       <section class="facts">
@@ -91,6 +98,7 @@ import { withBase } from '../lib/url';
       </p>
       <div data-qc></div>
     </section>
+    </div>
   </div>
 </BaseLayout>
 
@@ -118,7 +126,11 @@ import { withBase } from '../lib/url';
     border-radius: var(--radius);
     padding: var(--space-sm);
     background: var(--bg-subtle);
+    max-width: var(--prose-width);
   }
+
+  .error :global(p) { margin-block: 0 var(--space-xs); }
+  .error :global(p:last-child) { margin-block-end: 0; }
 
   /* The map and the facts read as one strip: what the record is, beside
      where it went. Below 60rem they stack, map first — the map is the thing
