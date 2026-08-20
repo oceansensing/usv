@@ -11,7 +11,8 @@
  */
 
 export {
-  plot, tick, stamp, DEFAULT_STEPS, DEFAULT_MAX_POINTS,
+  plot, tick, stamp, axisTicks, niceStep, niceTimeStep, timeTickLabel,
+  DEFAULT_STEPS, DEFAULT_MAX_POINTS,
 } from './plot.ts';
 export type {
   Frame, Placed, PlotOptions, PlotResult, PlotStyle, Series,

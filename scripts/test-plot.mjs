@@ -15,12 +15,19 @@
 import fs from 'node:fs';
 import { JSDOM } from 'jsdom';
 import { check, done, near, ok, section } from './lib/check.mjs';
-import { plot, DEFAULT_MAX_POINTS, tick, stamp } from '../packages/plot/plot.ts';
+import {
+  plot, DEFAULT_MAX_POINTS, tick, stamp, axisTicks, niceStep, niceTimeStep,
+  timeTickLabel,
+} from '../packages/plot/plot.ts';
+import { standalone } from '../packages/plot/png.ts';
 import { sample, COLORMAPS, knownColormap } from '../packages/plot/colormaps.ts';
 import { robustRange, ROBUST_LOW, ROBUST_HIGH } from '../packages/plot/robust.ts';
 
 const dom = new JSDOM('<!doctype html><svg id="p"></svg>');
 const { document } = dom.window;
+/* `standalone` serialises through the global `XMLSerializer`, which a browser
+   has and Node does not. Borrowed from the same window the nodes come from. */
+globalThis.XMLSerializer ??= dom.window.XMLSerializer;
 const NS = 'http://www.w3.org/2000/svg';
 const fresh = () => {
   const svg = document.createElementNS(NS, 'svg');
@@ -285,9 +292,18 @@ section('a seeded range box is a visible default');
   const s = ramp(100);
   const svg = fresh();
   const r = plot(svg, s, { width: 400, height: 300, flipY: true, yRange: [0, null] });
-  const ticks = [...svg.querySelectorAll('text.tick')].map((t) => t.textContent);
-  check('the axis starts at the given floor', parseFloat(ticks[0]), 0);
-  ok('and still ends at the data', parseFloat(ticks[1]) >= 99, ticks[1]);
+  /* **Asked of the frame, not of the labels.** Honouring a range is about
+     where the axis runs; the labels sit on round numbers, so the top of a
+     0–99 axis is a tick at 80 and the frame is still at 99. Reading the
+     range off the last label was testing the tick placement by accident. */
+  check('the axis starts at the given floor', r.frame.yLo, 0);
+  ok('and still ends at the data', r.frame.yHi >= 99, `${r.frame.yHi}`);
+
+  const ticks = [...svg.querySelectorAll('text.tick-y')].map((t) => t.textContent);
+  ok('every gridline carries a label', ticks.length >= 3, ticks.join(', '));
+  check('the first is the floor', parseFloat(ticks[0]), 0);
+  ok('and the labels are round numbers a reader chose',
+    ticks.every((t) => Number.isInteger(parseFloat(t) / 20)), ticks.join(', '));
   check('nothing is hidden by it', r.hidden, 0);
 
   /* A floor below the data must not clip: it is a window onto the data, so
@@ -375,6 +391,131 @@ section('every colormap this site names actually exists');
   }
   ok('no figure asks for a map that does not exist', unknown.length === 0,
     unknown.join('; ') || 'all resolve');
+}
+
+/* ------------------------------------------------------------------------ */
+section('the numbers an axis is divided on');
+
+/* A step of `span / n` gives 13.7 and labels a plot with numbers nobody
+   chose. These are the ones a reader expects to see. */
+{
+  check('a hundred divides by twenty', niceStep(100, 5), 20);
+  check('a decimal span keeps its decimals', niceStep(1, 5), 0.2);
+  check('and a large one its magnitude', niceStep(100_000, 5), 20_000);
+  ok('every step is 1, 2 or 5 times a power of ten',
+    [3, 7, 12, 60, 340, 1e6, 0.004].every((span) => {
+      const st = niceStep(span, 6);
+      const m = st / 10 ** Math.floor(Math.log10(st));
+      return [1, 2, 5, 10].some((k) => Math.abs(m - k) < 1e-9);
+    }));
+  check('a span of nothing still gives a step', niceStep(0), 1);
+  check('and so does a broken one', niceStep(NaN), 1);
+}
+
+/* A clock is not read in round numbers of seconds. An axis stepped by
+   20,000 s lands on 5 h 33 m boundaries, which means nothing to anybody. */
+{
+  check('a day divides into three-hour marks', niceTimeStep(86_400, 6), 10_800);
+  check('an hour into ten-minute marks', niceTimeStep(3600, 6), 600);
+  check('a fortnight into days', niceTimeStep(14 * 86_400, 6), 172_800);
+  ok('every time step is a unit a clock has',
+    [60, 3600, 86_400, 7 * 86_400, 365 * 86_400].every((span) =>
+      [1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600, 7200, 10_800,
+        21_600, 43_200, 86_400, 172_800, 604_800, 1_209_600, 2_592_000,
+        7_776_000, 15_552_000, 31_536_000].includes(niceTimeStep(span, 6))));
+}
+
+{
+  const t = axisTicks(0, 100, false, 5);
+  check('ticks span the axis', `${t[0]}…${t[t.length - 1]}`, '0…100');
+  ok('at a round interval', t.every((v, i) => i === 0 || v - t[i - 1] === 20), `${t}`);
+
+  /* Counted from a multiple of the step, not from `lo` — so two figures over
+     overlapping windows put their gridlines in the same places. */
+  const off = axisTicks(3, 103, false, 5);
+  ok('and from a multiple of the step, whatever the start',
+    off.every((v) => Number.isInteger(v / 20)), `${off}`);
+
+  check('a zero-width axis still gives one tick', axisTicks(5, 5).length, 1);
+  check('a backwards one likewise', axisTicks(10, 1).length, 1);
+  ok('and a broken one does not hang', axisTicks(NaN, 1).length >= 1);
+  ok('a huge span is capped rather than unbounded',
+    axisTicks(0, 1e12, false, 6).length < 250);
+}
+
+/* **The first label carries the date and the rest do not.** Six copies of
+   `2026-08-19 12:00` is unreadable and says the same thing six times. */
+{
+  const t = 1_786_665_600;
+  ok('the first tick says where the axis is',
+    /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(timeTickLabel(t, 3600, true)),
+    timeTickLabel(t, 3600, true));
+  ok('an hourly axis then reads as a clock',
+    /^\d{2}:\d{2}$/.test(timeTickLabel(t, 3600, false)), timeTickLabel(t, 3600, false));
+  ok('a daily axis as a date',
+    /^\d{2}-\d{2}$/.test(timeTickLabel(t, 172_800, false)), timeTickLabel(t, 172_800, false));
+  ok('and a yearly one as a month',
+    /^\d{4}-\d{2}$/.test(timeTickLabel(t, 7_776_000, false)), timeTickLabel(t, 7_776_000, false));
+}
+
+/* The grid is one node, not one per line: a 200-line grid of separate
+   elements is 200 nodes to style, hit-test and serialise into every export. */
+{
+  const svg = fresh();
+  plot(svg, ramp(100), { width: 400, height: 300 });
+  const grid = svg.querySelectorAll('path.grid');
+  check('the grid is a single path', grid.length, 1);
+  ok('with a segment per gridline', (grid[0].getAttribute('d').match(/M /g) ?? []).length >= 4);
+  check('and the tick marks are another', svg.querySelectorAll('path.tick-mark').length, 1);
+
+  const off = fresh();
+  plot(off, ramp(100), { width: 400, height: 300, grid: false });
+  check('and it can be turned off', off.querySelectorAll('path.grid').length, 0);
+  ok('while the ticks stay', off.querySelectorAll('text.tick-x').length > 0);
+}
+
+/* ------------------------------------------------------------------------ */
+section('what an exported figure says about itself');
+
+/*
+ * A file leaves the page behind. A panel headed "Air pressure" in a
+ * manuscript is a picture of nothing in particular — which of 153
+ * deployments, and on which mission, is the half a reader cannot
+ * reconstruct and the page cannot supply once the PNG is somewhere else.
+ */
+{
+  const svg = fresh();
+  plot(svg, ramp(100), { width: 400, height: 300 });
+
+  const page = standalone(svg, {
+    title: 'Air pressure',
+    subtitle: 'SD-1030 · Hurricane Monitoring 2026',
+    caption: '7,121 of 42,721 samples',
+  });
+  ok('the title is in the file', page.markup.includes('Air pressure'));
+  ok('and the vehicle', page.markup.includes('SD-1030'));
+  ok('and the mission', page.markup.includes('Hurricane Monitoring 2026'));
+  ok('and the caption', page.markup.includes('7,121 of 42,721 samples'));
+  ok('the subtitle is styled apart from the title',
+    /export-subtitle/.test(page.markup) && /\.export-subtitle\s*\{/.test(page.markup));
+
+  /* The grid travels with the figure and is styled for print — a class with
+     no rule in the exported document draws in the SVG default, which is
+     black. */
+  ok('the grid is carried into the file', /class="grid"/.test(page.markup));
+  ok('and has print ink of its own', /\.grid\s*\{[^}]*stroke/.test(page.markup));
+  ok('so does the tick mark', /\.tick-mark\s*\{[^}]*stroke/.test(page.markup));
+
+  /* Room is made for the line, or it draws over the figure. */
+  const without = standalone(svg, { title: 'Air pressure' });
+  ok('a subtitle makes the page taller', page.height > without.height,
+    `${without.height} → ${page.height}`);
+
+  const bare = standalone(svg, {});
+  ok('and a figure with neither is just the figure',
+    bare.height < without.height, `${bare.height}`);
+  ok('a subtitle alone still draws',
+    standalone(svg, { subtitle: 'SD-1030' }).markup.includes('SD-1030'));
 }
 
 done();

@@ -339,4 +339,32 @@ section('the prose has spaces where prose needs them');
     trailing.join(', ') || 'clean');
 }
 
+section('a figure has one of each control, not two');
+
+{
+  /*
+   * Every control is found by `root.querySelector('[data-plot-x]')`, which
+   * takes the first match and silently ignores a second. Two elements with
+   * one hook is a control the reader can move that changes nothing — the
+   * shape of the bug the stack's wrapper already had with `data-figure`, and
+   * the one to make while moving a control out of a disclosure.
+   */
+  for (const { file, dom } of docs) {
+    const doc = dom.window.document;
+    for (const figure of doc.querySelectorAll('[data-figure], [data-plot-svg]')) {
+      const host = figure.closest('figure') ?? figure;
+      const seen = new Map();
+      for (const el of host.querySelectorAll('*')) {
+        for (const attr of el.getAttributeNames()) {
+          if (!attr.startsWith('data-plot-') && !attr.startsWith('data-track-')) continue;
+          seen.set(attr, (seen.get(attr) ?? 0) + 1);
+        }
+      }
+      const doubled = [...seen].filter(([, n]) => n > 1).map(([a, n]) => `${a}×${n}`);
+      ok(`${file}: each control hook appears once`, doubled.length === 0,
+        doubled.join(', ') || `${seen.size} hooks`);
+    }
+  }
+}
+
 done();

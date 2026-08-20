@@ -42,6 +42,18 @@ export interface Preset {
   /** Extra sentence appended to the caption. */
   note?: string;
   /**
+   * What this figure is *of* — the vehicle and the mission — for the export.
+   *
+   * A function rather than a string because a figure outlives the record it
+   * is showing: the vehicle page builds its stack once and then loads a
+   * different deployment into it.
+   *
+   * On screen this is the page around the figure and needs no repeating. In
+   * a file there is no page, and a panel headed "Air pressure" with nothing
+   * saying which of 153 deployments it came from is a figure nobody can use.
+   */
+  context?: () => string | undefined;
+  /**
    * Limits to open the y range boxes with, as text.
    *
    * Written into the boxes rather than forced behind them, so the reader can
@@ -556,12 +568,16 @@ export function makeFigure(root: HTMLElement, preset: Preset): Figure {
          beside the SVG; in a manuscript the figure has to say what it is and
          how much of the record it shows without them. */
       const heading = root.querySelector('.figure-title')?.textContent?.trim();
+      const context = preset.context?.();
       const page = standalone(svg, {
         title: heading,
+        subtitle: context,
         caption: caption.textContent ?? undefined,
       });
       const blob = await svgToPng(page.markup, page.width, page.height, 3, page.background);
-      save(blob, exportName([heading ?? '', 'vs', sel.x.value], 'png'));
+      /* The vehicle leads the filename too: a folder of `air-pressure.png`
+         from six deployments is six files with one name. */
+      save(blob, exportName([context ?? '', heading ?? '', sel.x.value], 'png'));
     } catch (error) {
       caption.textContent = `The image could not be saved: ${(error as Error).message}`;
     } finally {

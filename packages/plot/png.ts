@@ -37,6 +37,15 @@ const NS = 'http://www.w3.org/2000/svg';
 export interface StandaloneOptions {
   /** Drawn above the figure. */
   title?: string;
+  /**
+   * A second line under the title, in muted type.
+   *
+   * **What the figure is *of*, as against what it shows.** A panel headed
+   * "Air pressure" is a picture of nothing in particular once it is in a
+   * manuscript; "SD-1030 · Hurricane Monitoring 2026" is the half a reader
+   * cannot reconstruct and the page it came from cannot supply.
+   */
+  subtitle?: string;
   /** Drawn below it — what the picture is and is not. */
   caption?: string;
   /** Extra rules for the figure's own linework. */
@@ -65,7 +74,7 @@ export function standalone(svg: SVGSVGElement, options: StandaloneOptions = {}):
   const pad = options.padding ?? 18;
   const background = options.background ?? PRINT.bg;
 
-  const titleH = options.title ? 30 : 0;
+  const titleH = (options.title ? 30 : 0) + (options.subtitle ? 17 : 0);
   const captionH = options.caption ? 22 : 0;
   const width = w + pad * 2;
   const height = h + titleH + captionH + pad * 2;
@@ -94,6 +103,15 @@ export function standalone(svg: SVGSVGElement, options: StandaloneOptions = {}):
     t.setAttribute('y', String(pad + 18));
     t.textContent = options.title;
     out.append(t);
+  }
+
+  if (options.subtitle) {
+    const st = doc.createElementNS(NS, 'text');
+    st.setAttribute('class', 'export-subtitle');
+    st.setAttribute('x', String(pad));
+    st.setAttribute('y', String(pad + (options.title ? 35 : 16)));
+    st.textContent = options.subtitle;
+    out.append(st);
   }
 
   /* Nested, not flattened: the figure keeps its own coordinate system and
@@ -129,8 +147,14 @@ export function standalone(svg: SVGSVGElement, options: StandaloneOptions = {}):
 function baseCss(): string {
   return `
     .export-title { fill: ${PRINT.text}; font: 600 17px system-ui, sans-serif; }
+    .export-subtitle { fill: ${PRINT.muted}; font: 13px ui-monospace, monospace; }
     .export-caption { fill: ${PRINT.muted}; font: 12px ui-monospace, monospace; }
     .axis { fill: none; stroke: ${PRINT.line}; stroke-width: 1; }
+    /* Lighter in a file than on screen: print has more contrast than a
+       backlit panel, and a grid that reads as faint on a monitor reads as
+       ruled lines on paper. */
+    .grid { fill: none; stroke: ${PRINT.line}; stroke-width: 0.5; opacity: 0.3; }
+    .tick-mark { fill: none; stroke: ${PRINT.line}; stroke-width: 1; }
     .trace { fill: none; stroke: ${PRINT.accent}; stroke-width: 1.5; }
     .tick { fill: ${PRINT.muted}; font: 11px ui-monospace, monospace; }
     .axis-name { fill: ${PRINT.text}; font: 12px ui-monospace, monospace; }

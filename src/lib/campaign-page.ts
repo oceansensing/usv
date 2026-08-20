@@ -314,6 +314,16 @@ export function makeCampaignPage(root: Document): { load(slug: string | null): P
           + 'Every vehicle here was resolved to the same canonical quantity and '
           + 'the same units before being drawn, which is the only reason a '
           + 'Saildrone and an Oshen can share this axis.',
+        /* The campaign and how many vehicles are on the axis — the roster is
+           beside the figure on the page and not in the file. Read at export
+           time from the page's own state, because one figure serves every
+           campaign the reader opens. */
+        context: () => {
+          const label = titleEl.textContent?.trim();
+          return label && loaded.length
+            ? `${label} · ${loaded.length} vehicles`
+            : label || undefined;
+        },
       });
     }
     figure.update(source);

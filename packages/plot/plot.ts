@@ -121,6 +121,15 @@ export interface PlotOptions {
   xTime?: boolean;
   yTime?: boolean;
   cTime?: boolean;
+  /**
+   * Gridlines and intermediate ticks. On by default.
+   *
+   * A closed frame with a number at each end says what the range is; it does
+   * not let a reader read a value off the picture, which is what a grid is
+   * for. Drawn faintly, behind everything, so it supports the data rather
+   * than competing with it.
+   */
+  grid?: boolean;
   /** Drawn after the axes and before the points. */
   underlay?: (svg: SVGSVGElement, frame: Frame) => void;
   maxPoints?: number;
@@ -178,6 +187,95 @@ export function tick(v: number): string {
 export function stamp(epochSeconds: number): string {
   if (!Number.isFinite(epochSeconds)) return '—';
   return new Date(epochSeconds * 1000).toISOString().replace('T', ' ').replace(/\.\d+Z$/, '');
+}
+
+
+/**
+ * A step a reader expects to see on an axis: 1, 2 or 5 times a power of ten.
+ *
+ * Not the span divided by the tick count, which gives 13.7 and labels a plot
+ * with numbers nobody chose.
+ */
+export function niceStep(span: number, target = 6): number {
+  if (!(span > 0) || !Number.isFinite(span)) return 1;
+  const raw = span / Math.max(1, target);
+  const mag = 10 ** Math.floor(Math.log10(raw));
+  const norm = raw / mag;
+  return (norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10) * mag;
+}
+
+/**
+ * The same, for a clock — **in the units a clock is actually read in**.
+ *
+ * A time axis stepped by a round *number* of seconds lands on 20,000-second
+ * boundaries, which is 5 h 33 m and means nothing to anybody. These are the
+ * intervals people divide a day into.
+ */
+const TIME_STEPS = [
+  1, 2, 5, 10, 15, 30,
+  60, 120, 300, 600, 900, 1800,
+  3600, 7200, 10_800, 21_600, 43_200,
+  86_400, 172_800, 604_800, 1_209_600, 2_592_000, 7_776_000, 15_552_000,
+  31_536_000,
+] as const;
+
+export function niceTimeStep(span: number, target = 6): number {
+  const raw = span / Math.max(1, target);
+  if (!(raw > 0) || !Number.isFinite(raw)) return TIME_STEPS[0];
+  /* **The nearest rung, not the next one up.** The ladder steps 2 days then
+     a week, so "the first rung at least this big" turns a fortnight — which
+     wants a mark every two or three days — into one with two marks on it.
+     Nearest in log space, because a rung is a ratio away from its
+     neighbours, not a difference. */
+  let best: number = TIME_STEPS[0];
+  let bestErr = Infinity;
+  for (const s of TIME_STEPS) {
+    const err = Math.abs(Math.log(s / raw));
+    if (err < bestErr) { bestErr = err; best = s; }
+  }
+  return best;
+}
+
+/**
+ * Where the ticks go on an axis from `lo` to `hi`.
+ *
+ * Counted from a multiple of the step rather than from `lo`, so the labels
+ * are round numbers and two figures over overlapping windows put their
+ * gridlines in the same places.
+ */
+export function axisTicks(
+  lo: number, hi: number, isTime?: boolean, target = 6,
+): number[] {
+  if (!Number.isFinite(lo) || !Number.isFinite(hi) || hi <= lo) return [lo];
+  const step = isTime ? niceTimeStep(hi - lo, target) : niceStep(hi - lo, target);
+  const first = Math.ceil(lo / step) * step;
+  const out: number[] = [];
+  /* Indexed rather than accumulated: adding a float step in a loop drifts,
+     and a gridline half a pixel off its label is visible. */
+  for (let i = 0; ; i++) {
+    const v = first + i * step;
+    if (v > hi + step * 1e-9) break;
+    out.push(v);
+    if (out.length > 200) break;
+  }
+  return out.length ? out : [lo, hi];
+}
+
+/**
+ * A time tick's label, short enough to repeat across an axis.
+ *
+ * **The first one carries the date and the rest do not.** A row of six
+ * `2026-08-19 12:00` labels is unreadable and says the same thing six times;
+ * one full stamp and five clock times says where the axis is and how it is
+ * divided. Which half to keep is chosen from the step: an axis stepped in
+ * days has no use for minutes.
+ */
+export function timeTickLabel(v: number, step: number, first: boolean): string {
+  const full = stamp(v);
+  if (first) return full.slice(0, 16);
+  if (step < 86_400) return full.slice(11, 16);
+  if (step < 2_592_000) return full.slice(5, 10);
+  return full.slice(0, 7);
 }
 
 export function plot(
@@ -259,6 +357,37 @@ export function plot(
     return pad.top + up * (height - pad.top - pad.bottom);
   };
 
+  /* **How many divisions the figure has room for.** A 200 px stacked panel
+     and a 700 px section are the same code and want different answers: six
+     labels down a short y axis is a wall of numbers, and two across a wide x
+     axis is not an axis a value can be read off. */
+  const xTarget = Math.max(2, Math.round((width - pad.left - pad.right) / 170));
+  const yTarget = Math.max(2, Math.round((height - pad.top - pad.bottom) / 55));
+  const xTicks = axisTicks(xLoV, xHiV, options.xTime, xTarget);
+  const yTicks = axisTicks(yLoV, yHiV, options.yTime, yTarget);
+  const xStep = xTicks.length > 1 ? xTicks[1] - xTicks[0] : xHiV - xLoV;
+  const yStep = yTicks.length > 1 ? yTicks[1] - yTicks[0] : yHiV - yLoV;
+
+  /* **Behind everything, including the frame.** A gridline crossing the axis
+     box or a data point reads as part of the data. One path per figure, not
+     one per line — a 200-line grid of separate nodes is 200 nodes to style,
+     hit-test and serialise into every export. */
+  if (options.grid !== false) {
+    const d: string[] = [];
+    for (const v of xTicks) {
+      const x = px(v);
+      d.push(`M ${x} ${pad.top} L ${x} ${height - pad.bottom}`);
+    }
+    for (const v of yTicks) {
+      const y = py(v);
+      d.push(`M ${pad.left} ${y} L ${width - pad.right} ${y}`);
+    }
+    const grid = doc.createElementNS(NS, 'path');
+    grid.setAttribute('class', 'grid');
+    grid.setAttribute('d', d.join(' '));
+    svg.append(grid);
+  }
+
   /* **A closed box, not two legs.** A frame on all four sides is what a
      scientific figure wears, and it is what makes the plot area legible when
      the figure is dropped into a document that has its own background: two
@@ -285,15 +414,42 @@ export function plot(
     svg.append(el);
   };
 
+  /* Short strokes outside the frame, at every gridline. One path again. */
+  {
+    const d: string[] = [];
+    for (const v of xTicks) {
+      const x = px(v);
+      d.push(`M ${x} ${height - pad.bottom} L ${x} ${height - pad.bottom + 4}`);
+    }
+    for (const v of yTicks) {
+      const y = py(v);
+      d.push(`M ${pad.left} ${y} L ${pad.left - 4} ${y}`);
+    }
+    const marks = doc.createElementNS(NS, 'path');
+    marks.setAttribute('class', 'tick-mark');
+    marks.setAttribute('d', d.join(' '));
+    svg.append(marks);
+  }
+
   // The y labels sit outside the plot area, so `pad.left` has to be wide
   // enough for the longest of them. It was 46 with values printed to four
   // decimals, so a depth of 125.2447 m ran off the left of the viewBox and
   // was silently clipped to "25.2447" — a chart reporting a fifth of the
   // dive it had just drawn, with nothing to say it had been cut.
-  label(mark(yLoV, options.yTime), pad.left - 5, py(yLoV) + 4, 'end');
-  label(mark(yHiV, options.yTime), pad.left - 5, py(yHiV) + 4, 'end');
-  label(mark(xLoV, options.xTime), pad.left, height - pad.bottom + 14, 'start');
-  label(mark(xHiV, options.xTime), width - pad.right, height - pad.bottom + 14, 'end');
+  for (const v of yTicks) {
+    label(options.yTime ? timeTickLabel(v, yStep, v === yTicks[0]) : tick(v),
+      pad.left - 6, py(v) + 4, 'end', 'tick tick-y');
+  }
+  /* The ends are anchored inward so the first and last labels stay inside the
+     viewBox rather than half over its edge. */
+  xTicks.forEach((v, i) => {
+    const x = px(v);
+    const anchor = i === 0 && x - pad.left < 30 ? 'start'
+      : i === xTicks.length - 1 && width - pad.right - x < 30 ? 'end'
+        : 'middle';
+    label(options.xTime ? timeTickLabel(v, xStep, i === 0) : tick(v),
+      x, height - pad.bottom + 14, anchor, 'tick tick-x');
+  });
   // Naming the axes is what stops a plot of two chosen variables being a
   // picture of nothing in particular.
   if (options.xLabel) {

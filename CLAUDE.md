@@ -452,6 +452,50 @@ Half of `test:track` asserts that an **ordinary** track is left alone: a rule
 that cuts a real transit into pieces is worse than the line it prevents,
 because a broken track reads as missing data.
 
+### An axis a value can be read off
+
+The engine drew a closed frame with a number at each end. That says what the
+range is; it does not let a reader read a value off the picture, which is what
+a grid is for. Every axis now carries **round ticks, light gridlines and tick
+marks**, and the numbers on them are chosen rather than computed: `niceStep`
+gives 1, 2 or 5 × 10ⁿ, because a span divided by a tick count gives 13.7.
+
+**A clock is not divided in round numbers of seconds.** A time axis stepped by
+20,000 s lands on 5 h 33 m boundaries, so `niceTimeStep` picks from the units
+a clock actually has — 15 min, 6 h, 2 days, a week. It takes the *nearest*
+rung in log space, not the next one up: the ladder steps 2 days then a week,
+and "the first rung at least this big" turns a fortnight into an axis with two
+marks on it.
+
+**The first time label carries the date and the rest do not.** Six copies of
+`2026-08-19 12:00` is unreadable and says the same thing six times; one full
+stamp and five clock times says where the axis is and how it is divided.
+
+How many divisions is taken from the figure's own size — a 200 px stacked
+panel and a 700 px section are the same code and want different answers.
+
+The grid is **one path, not one node per line**, drawn behind the frame: a
+200-line grid of separate elements is 200 nodes to style, hit-test and
+serialise into every export.
+
+### An exported figure has to say what it is *of*
+
+A panel headed "Air pressure" is a picture of nothing in particular once it is
+in a manuscript. Which of 153 deployments, and on which mission, is the half a
+reader cannot reconstruct and the page it came from cannot supply. Both
+exports — the figure and the map — take a **subtitle** under the title, and
+the vehicle and campaign lead the filename too, because a folder of
+`air-pressure.png` from six deployments is six files with one name.
+
+### Vendored drift, taken deliberately
+
+`packages/plot/plot.ts`, `png.ts` and `index.ts` and `src/components/PlotFigure.astro`
+have **drifted from the sibling glider site** and `check:vendored` reports it.
+The grid, the tick ladder and the export subtitle are general improvements to
+the engine rather than anything about surface vehicles, so they belong
+upstream; until they are copied back the two sites' plot engines differ, and
+re-copying from the sibling would silently revert all three.
+
 ### A direction takes `hsv`
 
 A bearing wraps, so 359° and 1° must come out nearly the same colour. Every

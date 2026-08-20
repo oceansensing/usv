@@ -116,12 +116,24 @@ export function makeVehiclePage(root: Document | HTMLElement): VehiclePage {
       : null;
   };
 
+  /** The vehicle and the mission, for anything that leaves the page.
+   *
+   *  A declaration rather than a `const` arrow: the legend is constructed
+   *  above this line and names it, and a `const` in the temporal dead zone
+   *  throws at construction. */
+  function context(): string | undefined {
+    return series
+      ? `${series.doc.vehicle || series.doc.id} · ${series.doc.campaignLabel}`
+      : undefined;
+  }
+
   const legend = makeTrackLegend(root, {
     track: () => track,
     source,
     axes: () => ({ timeVar: 'time', latVar: 'lat', lonVar: 'lon' }),
     onChange: () => save(),
     title: () => (series ? `${series.doc.vehicle || series.doc.id} — track` : 'track'),
+    context,
   });
 
   async function load(id: string): Promise<void> {
@@ -225,6 +237,7 @@ export function makeVehiclePage(root: Document | HTMLElement): VehiclePage {
       windowStack(t0, t1);
     }
   }
+
 
   const has = (key: string): boolean => Boolean(series?.columns.has(key))
     && variables.some((v) => v.name === key && v.section);
@@ -476,6 +489,7 @@ export function makeVehiclePage(root: Document | HTMLElement): VehiclePage {
         style: 'line',
         height: 200,
         note: variable.note,
+        context,
         /* **Dragging across any panel windows the whole stack.** A shared
            time axis is the reason the panels are stacked at all, and a
            window applied to one of them breaks exactly that. The sibling
@@ -575,7 +589,9 @@ export function makeVehiclePage(root: Document | HTMLElement): VehiclePage {
     const x = has('salinity') ? 'salinity' : has('air_pressure') ? 'air_pressure' : 'time';
     const y = has('sea_temperature') ? 'sea_temperature'
       : has('wind_speed') ? 'wind_speed' : chosen[0] ?? 'time';
-    scatter = makeFigure(host, { x, y, c: 'time', style: 'dots', dot: 2, height: 380 });
+    scatter = makeFigure(host, {
+      x, y, c: 'time', style: 'dots', dot: 2, height: 380, context,
+    });
     scatter.update(source()!);
   }
 

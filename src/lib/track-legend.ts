@@ -36,6 +36,8 @@ export interface TrackLegendOptions {
   onChange?: () => void;
   /** What the exported PNG is called and titled. */
   title?: () => string;
+  /** The vehicle and the mission, for the exported file. */
+  context?: () => string | undefined;
 }
 
 export interface TrackLegend {
@@ -249,13 +251,15 @@ export function makeTrackLegend(
     png.textContent = 'Saving…';
     try {
       const title = options.title?.() ?? 'Glider track';
+      const subtitle = options.context?.();
       const blob = await exportMap(container, map, {
         title,
+        subtitle,
         caption: `Track coloured by ${last?.label ?? 'time'}${
           last ? `, ${last.lo} to ${last.hi}` : ''}.`,
         legend: last ?? undefined,
       });
-      save(blob, exportName([title, 'track'], 'png'));
+      save(blob, exportName([subtitle ?? '', title, 'track'], 'png'));
     } catch (error) {
       /* Said in the legend's own readout, which is the nearest thing this
          figure has to a caption — a silent failure on a button that takes a

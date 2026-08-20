@@ -25,6 +25,9 @@ import { ATTRIBUTION, type Track } from './track.ts';
 
 export interface MapExportOptions {
   title?: string;
+  /** A second line under the title, in muted type — what the map is *of*.
+      The page around it says so; the file has no page. */
+  subtitle?: string;
   caption?: string;
   /** The colour bar's label and span; omitted for an unlabelled track. */
   legend?: { label: string; lo: string; hi: string; colormap: string };
@@ -33,6 +36,7 @@ export interface MapExportOptions {
 
 const PAD = 18;
 const TITLE_H = 30;
+const SUBTITLE_H = 17;
 const CAPTION_H = 22;
 const BAR_W = 14;
 
@@ -69,7 +73,7 @@ export async function exportMap(
   const h = Math.round(rect.height);
   if (!(w > 0 && h > 0)) throw new Error('the map has no size yet');
 
-  const titleH = options.title ? TITLE_H : 0;
+  const titleH = (options.title ? TITLE_H : 0) + (options.subtitle ? SUBTITLE_H : 0);
   const captionH = options.caption ? CAPTION_H : 0;
   const width = w + PAD * 2;
   const height = h + titleH + captionH + PAD * 2;
@@ -92,6 +96,13 @@ export async function exportMap(
     ctx.font = '600 17px system-ui, sans-serif';
     ctx.textBaseline = 'alphabetic';
     ctx.fillText(options.title, PAD, PAD + 18);
+  }
+
+  if (options.subtitle) {
+    ctx.fillStyle = PRINT.muted;
+    ctx.font = '13px ui-monospace, monospace';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText(options.subtitle, PAD, PAD + (options.title ? 35 : 16));
   }
 
   /* The map's own pixels, clipped to the frame so a tile that hangs over the

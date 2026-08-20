@@ -49,6 +49,24 @@ const { title, id, hint } = Astro.props;
       <select class="field" data-plot-map></select>
     </label>
     <span class="ramp" data-plot-ramp aria-hidden="true"></span>
+    {/* **Out here rather than behind the disclosure.** Whether a series is
+        drawn as a line or as the samples it is made of is a reading
+        decision, not a tuning one — on a record with gaps a line implies
+        measurements between them that were never taken. It was in "Limits
+        and drawing" and nobody found it. */}
+    <label>
+      <span class="eyebrow">draw</span>
+      <select class="field" data-plot-style>
+        <option value="dots">dots</option>
+        <option value="line">line</option>
+        <option value="both">both</option>
+      </select>
+    </label>
+    <label>
+      <span class="eyebrow">dot</span>
+      <input class="field narrow" type="number" min="0.5" max="12" step="0.5"
+        value="2.5" data-plot-dot />
+    </label>
     <button class="btn" type="button" data-plot-flip aria-pressed="false">y down</button>
     <button class="btn" type="button" data-plot-png>PNG</button>
   </div>
@@ -85,20 +103,8 @@ const { title, id, hint } = Astro.props;
         <input class="field" type="number" min="160" max="1200" step="10" value="380" data-plot-h />
       </label>
       <label class="pair">
-        <span class="eyebrow">dot</span>
-        <input class="field" type="number" min="0.5" max="12" step="0.5" value="2.5" data-plot-dot />
-      </label>
-      <label class="pair">
         <span class="eyebrow">steps</span>
         <input class="field" type="number" min="2" max="256" step="1" value="24" data-plot-steps />
-      </label>
-      <label class="pair">
-        <span class="eyebrow">style</span>
-        <select class="field" data-plot-style>
-          <option value="dots">dots</option>
-          <option value="line">line</option>
-          <option value="both">both</option>
-        </select>
       </label>
       <button class="btn" type="button" data-plot-reset>Reset</button>
     </div>
@@ -199,6 +205,27 @@ const { title, id, hint } = Astro.props;
     fill: none;
     stroke: var(--accent);
     stroke-width: 1.5;
+  }
+
+  /* **Faint on purpose, and behind everything.** A grid a reader notices is
+     a grid competing with the data; one they can follow to an axis when they
+     want a number is doing its job. `fill: none` for the same reason the
+     axis needs it — a path fills by default and this one is a comb. */
+  .controls .narrow {
+    width: 4.5rem;
+  }
+
+  [data-figure] .grid {
+    fill: none;
+    stroke: var(--border);
+    stroke-width: 1;
+    opacity: 0.35;
+  }
+
+  [data-figure] .tick-mark {
+    fill: none;
+    stroke: var(--border);
+    stroke-width: 1;
   }
 
   [data-figure] .tick {
