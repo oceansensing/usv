@@ -29,7 +29,8 @@ export {
 export { fetchInfo, parseInfo } from './info.ts';
 
 export {
-  fetchTable, chooseRung, isFullRate, medianCadence, ErddapError,
+  fetchTable, fetchWithRetry, chooseRung, isFullRate, medianCadence, ErddapError,
+  FETCH_TIMEOUT_MS,
   LADDER, FETCH_ROWS, DISPLAY_POINTS,
 } from './fetch.ts';
 export type { FetchOptions } from './fetch.ts';

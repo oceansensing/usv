@@ -13,7 +13,8 @@
 import fs from 'node:fs';
 import { check, done, ok, section, throws } from './lib/check.mjs';
 import {
-  campaignOf, campaignYear, chooseRung, intervalString, isActive, isFullRate,
+  campaignOf, campaignYear, chooseRung, fetchWithRetry, intervalString, isActive,
+  isFullRate,
   kindOf, LADDER, medianCadence, parseCatalog, parseInfo, parseIsoTime,
   parseJsonlCsv, tabledapUrl, variantOf, vehicleOf,
 } from '../packages/erddap-pmel/index.ts';
@@ -371,5 +372,53 @@ section('activity');
 }
 
 throws('an unreadable fixture fails loudly', () => json('does-not-exist.json'));
+
+/* ------------------------------------------------------------------------ */
+section('the request everything else waits on is retried');
+
+/*
+ * The catalog request had no retry and no timeout — a bare `fetch` — and it
+ * is the *first* call of every build. One dropped connection from PMEL
+ * (`UND_ERR_SOCKET: other side closed`, `bytesRead: 0`) failed a deploy that
+ * had nothing else wrong with it, and the whole site published nothing.
+ */
+{
+  const ok200 = () => new Response('{}', { status: 200 });
+
+  let calls = 0;
+  const flaky = async () => {
+    calls++;
+    if (calls < 3) throw Object.assign(new Error('other side closed'), { code: 'UND_ERR_SOCKET' });
+    return ok200();
+  };
+  const r = await fetchWithRetry('https://example.invalid/x', { fetchImpl: flaky, retries: 2, timeoutMs: 50 });
+  check('a dropped connection is retried rather than fatal', r.status, 200);
+  check('and it took the attempts it needed', calls, 3);
+
+  let tries = 0;
+  const dead = async () => { tries++; throw new Error('nope'); };
+  /* `throws` is synchronous and cannot see a rejected promise — awaiting the
+     rejection here is the difference between testing this and testing
+     nothing. */
+  let threw = false;
+  try {
+    await fetchWithRetry('https://example.invalid/x', { fetchImpl: dead, retries: 1, timeoutMs: 50 });
+  } catch { threw = true; }
+  ok('an error that never clears still throws in the end', threw);
+  check('  after the attempts it was given', tries, 2);
+
+  /* A 404 is an answer. Asking three times gets the same one. */
+  let asked = 0;
+  const missing = async () => { asked++; return new Response('', { status: 404 }); };
+  const gone = await fetchWithRetry('https://example.invalid/x', { fetchImpl: missing, retries: 2, timeoutMs: 50 });
+  check('a 404 comes straight back', gone.status, 404);
+  check('  asked once, not three times', asked, 1);
+
+  /* A 200 is not retried either. */
+  let once = 0;
+  const good = async () => { once++; return ok200(); };
+  await fetchWithRetry('https://example.invalid/x', { fetchImpl: good, retries: 2, timeoutMs: 50 });
+  check('and a success is asked for exactly once', once, 1);
+}
 
 done();

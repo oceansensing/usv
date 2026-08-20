@@ -10,6 +10,7 @@
 
 import type { DatasetInfo, VariableInfo } from './types.ts';
 import { infoUrl, parseIsoTime, PMEL } from './url.ts';
+import { fetchWithRetry } from './fetch.ts';
 
 interface InfoDoc {
   table: { columnNames: string[]; rows: unknown[][] };
@@ -142,7 +143,9 @@ export async function fetchInfo(
   base: string = PMEL,
   fetchImpl: typeof fetch = fetch,
 ): Promise<DatasetInfo> {
-  const response = await fetchImpl(infoUrl(base, id));
+  /* Retried like every other request to this server: 164 of these run per
+     catalog build, and a bare fetch makes each one a chance to fail it. */
+  const response = await fetchWithRetry(infoUrl(base, id), { fetchImpl });
   if (!response.ok) {
     throw new Error(`info ${id}: ${response.status} ${response.statusText}`);
   }

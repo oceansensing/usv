@@ -15,6 +15,7 @@
 
 import type { DatasetSummary, Kind, Vendor } from './types.ts';
 import { catalogUrl, parseIsoTime, PMEL } from './url.ts';
+import { fetchWithRetry } from './fetch.ts';
 
 /* -------------------------------------------------------------- vendor -- */
 
@@ -191,7 +192,10 @@ export async function listDatasets(
   base: string = PMEL,
   fetchImpl: typeof fetch = fetch,
 ): Promise<DatasetSummary[]> {
-  const response = await fetchImpl(catalogUrl(base));
+  /* **Retried, because this is the request everything else waits on.** It is
+     the first call of every build, and a bare `fetch` here meant one dropped
+     connection failed a deploy that had nothing else wrong with it. */
+  const response = await fetchWithRetry(catalogUrl(base), { fetchImpl });
   if (!response.ok) {
     throw new Error(`catalog: ${response.status} ${response.statusText}`);
   }

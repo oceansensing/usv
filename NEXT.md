@@ -13,7 +13,7 @@ it, `PLAN.md` for the running record. This is the one job list.
 | | |
 |---|---|
 | site | https://oceansensing.org/usv/ — `oceansensing/usv` |
-| gate | `npm run verify` — 922 offline checks, nine suites |
+| gate | `npm run verify` — 929 offline checks, nine suites |
 | overview | 152 of 153 records, 1.08 M points |
 | full rate | **10 shards, 152 records, 2,190 chunks, 21.8 M rows, 722 MB** |
 

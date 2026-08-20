@@ -716,3 +716,20 @@ Each was written, run, and found to be wrong. Each now has a gate.
   shape of the table. *Gate:* `test:qc`, and `test:pages` now counts the
   checks the quality page describes against the ones `types.ts` defines rather
   than against a number written in the test.
+- **The first request of every build was the least protected one.**
+  `fetchTable` retries with backoff and abandons a hung connection after five
+  minutes; `listDatasets` and `fetchInfo` were bare `fetch` calls with
+  neither. The catalog request is what every other request waits on, so one
+  dropped connection from PMEL — `UND_ERR_SOCKET: other side closed`,
+  `bytesRead: 0` — failed a deploy whose diff was entirely front-end. All
+  three now go through `fetchWithRetry`. *Gate:* `test:erddap` drives it with
+  a connection that drops twice and then answers, one that never answers, and
+  a 404, which must come straight back rather than be asked for three times.
+- **A code-only change still cannot deploy while PMEL is down.** The build
+  *is* the data path — `npm run data` fetches before Astro builds — so a
+  figure change with no data in it waits on an upstream that has nothing to
+  do with it. Retries make a bad minute survivable; they do not make a bad
+  hour survivable. The guard is still right (nothing is published rather than
+  a broken site), but the fix would be for the build to fall back to the
+  previously published `catalog.json` when the archive cannot be reached, and
+  say on the page that the data is the previous snapshot.

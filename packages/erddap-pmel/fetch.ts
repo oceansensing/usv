@@ -41,6 +41,15 @@ export const LADDER = [1, 2, 5, 10, 15, 20, 30, 60, 120, 180, 360] as const;
     check that matters to find what it is looking for. */
 export const FETCH_ROWS = 150_000;
 
+/**
+ * How long one request may hang before it is abandoned.
+ *
+ * `fetch` has no timeout of its own, so a connection that opens and then goes
+ * quiet never errors and never resolves — the retry loop below never runs,
+ * and one record wedged a serial build for 25 minutes.
+ */
+export const FETCH_TIMEOUT_MS = 300_000;
+
 /** How many points a series is stored at. At 1240 px that is six per pixel,
     past where a finer series changes the picture, and it bounds the whole
     archive at about 200 MB rather than the 2 GB full rate would need. */
@@ -146,7 +155,7 @@ export async function fetchTable(
   const base = opts.base ?? PMEL;
   const fetchImpl = opts.fetchImpl ?? fetch;
   const retries = opts.retries ?? 2;
-  const timeoutMs = opts.timeoutMs ?? 300_000;
+  const timeoutMs = opts.timeoutMs ?? FETCH_TIMEOUT_MS;
 
   const decimate = opts.minutes !== undefined
     && !isFullRate(opts.minutes, opts.cadenceSeconds ?? 0);
@@ -214,6 +223,50 @@ export async function fetchTable(
 }
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * One request, retried the way this server needs.
+ *
+ * **The catalog request had none of this** — a bare `fetch` with no timeout
+ * and no retry — and it is the *first* request of every build, so the least
+ * protected call took the whole thing down with it. One dropped connection
+ * (`UND_ERR_SOCKET: other side closed`, `bytesRead: 0`) failed a deploy that
+ * had nothing wrong with it.
+ *
+ * A 408 and a timeout get the long backoff for the same reason `fetchTable`
+ * gives them one: the server is busy with this client's other request and
+ * will say so again a second later.
+ */
+export async function fetchWithRetry(
+  url: string,
+  { retries = 2, timeoutMs = FETCH_TIMEOUT_MS, fetchImpl = fetch as typeof fetch } = {},
+): Promise<Response> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const response = await fetchImpl(url, { signal: AbortSignal.timeout(timeoutMs) });
+      /* A 404 is an answer here too, and 4xx other than 408 will not change
+         on a second ask. */
+      if (!response.ok && response.status !== 408
+        && response.status >= 400 && response.status < 500) {
+        return response;
+      }
+      if (response.ok) return response;
+      throw new ErddapError(
+        `${response.status} ${response.statusText}`, response.status,
+        response.status === 404,
+      );
+    } catch (error) {
+      lastError = error;
+      if (attempt < retries) {
+        const busy = error instanceof ErddapError && error.status === 408;
+        const timedOut = (error as Error)?.name === 'TimeoutError';
+        await sleep((busy || timedOut ? 20_000 : 1500) * (attempt + 1));
+      }
+    }
+  }
+  throw lastError;
+}
 
 /**
  * The vehicle's reporting interval, taken from the record itself.
